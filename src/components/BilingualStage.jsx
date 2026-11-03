@@ -1,0 +1,361 @@
+import { useState, useEffect, useRef } from 'preact/hooks';
+import {
+  handleKeyPress,
+  handleBackspace,
+  handleSpaceKey,
+  calculateTypingMetrics
+} from '../lib/typingEngine.js';
+
+/**
+ * Hiển thị số nhỏ (superscript) cho badge cụm liên kết
+ * @param {number} id
+ * @returns {string}
+ */
+function getSuperscriptNumber(id) {
+  const sups = {
+    0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴',
+    5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹'
+  };
+  return String(id)
+    .split('')
+    .map((c) => sups[c] || c)
+    .join('');
+}
+
+export function BilingualStage({
+  card,
+  typingState,
+  setTypingState,
+  onNextCard,
+  onSkipCard,
+  onRestartCard,
+  onPlaySpeech,
+  autoNext = false,
+  memoryMode = false,
+  onRecordStats
+}) {
+  const [hoveredLinkId, setHoveredLinkId] = useState(null);
+  const [isBoxFocused, setIsBoxFocused] = useState(true);
+  const [autoNextCountdown, setAutoNextCountdown] = useState(null);
+  const inputRef = useRef(null);
+
+  // Tự động focus vào input khi đổi thẻ hoặc load
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [card?.id]);
+
+  // Xử lý auto-next sau khi hoàn thành
+  useEffect(() => {
+    if (!typingState.isComplete) {
+      setAutoNextCountdown(null);
+      return;
+    }
+
+    const metrics = calculateTypingMetrics(typingState);
+    if (onRecordStats && card?.id) {
+      onRecordStats(card.id, {
+        wpm: metrics.wpm,
+        accuracy: metrics.accuracy,
+        errorCount: typingState.errorCount
+      });
+    }
+
+    if (autoNext) {
+      setAutoNextCountdown(1.2);
+      const timer = setTimeout(() => {
+        onNextCard();
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [typingState.isComplete]);
+
+  // Đảm bảo input luôn nhận focus khi click vào box
+  const handleBoxClick = () => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      setIsBoxFocused(true);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    // 1. Phím tắt toàn cục
+    if (e.key === 'Enter') {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        onSkipCard();
+        return;
+      }
+      if (typingState.isComplete) {
+        e.preventDefault();
+        onNextCard();
+        return;
+      }
+    }
+
+    if (e.key === 'Tab' || (e.ctrlKey && e.key === 'Backspace')) {
+      e.preventDefault();
+      onRestartCard();
+      return;
+    }
+
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      const updated = { ...typingState };
+      handleBackspace(updated);
+      setTypingState(updated);
+      return;
+    }
+
+    if (e.key === ' ') {
+      if (typingState.isComplete) {
+        e.preventDefault();
+        onNextCard();
+        return;
+      }
+      e.preventDefault();
+      const updated = { ...typingState };
+      handleSpaceKey(updated);
+      setTypingState(updated);
+      return;
+    }
+  };
+
+  const handleInput = (e) => {
+    const val = e.target.value;
+    e.target.value = ''; // Reset input để không tích lũy buffer
+
+    if (!val || typingState.isComplete || typingState.isComposing) return;
+
+    const char = val[val.length - 1];
+    const updated = { ...typingState };
+    handleKeyPress(updated, char);
+    setTypingState(updated);
+  };
+
+  const handleCompositionStart = () => {
+    setTypingState((prev) => ({ ...prev, isComposing: true }));
+  };
+
+  const handleCompositionEnd = (e) => {
+    const updated = { ...typingState, isComposing: false };
+    const val = e.data || '';
+    if (val) {
+      for (const char of val) {
+        handleKeyPress(updated, char);
+      }
+    }
+    setTypingState(updated);
+  };
+
+  // Render câu tiếng Việt với các cụm liên kết
+  const renderVietnameseLine = () => {
+    if (!card) return null;
+
+    const viText = card.vi || '';
+    const links = (card.links || []).filter((l) => l.viStart !== undefined && l.viEnd !== undefined);
+
+    if (links.length === 0) {
+      return <span>{viText}</span>;
+    }
+
+    // Sắp xếp theo viStart
+    const sorted = [...links].sort((a, b) => a.viStart - b.viStart);
+    const elements = [];
+    let lastIdx = 0;
+
+    sorted.forEach((l) => {
+      if (l.viStart > lastIdx) {
+        elements.push(<span>{viText.slice(lastIdx, l.viStart)}</span>);
+      }
+
+      const clusterText = viText.slice(l.viStart, l.viEnd);
+      const isTargetActive = typingState.activeLinkId === l.id;
+      const isHovered = hoveredLinkId === l.id;
+      const isCompleted = typingState.completedLinkIds.includes(l.id);
+
+      const colorClass = `link-id-${((l.id - 1) % 5) + 1}`;
+
+      elements.push(
+        <span
+          className={`link-cluster ${colorClass} ${isTargetActive ? 'active' : ''} ${isHovered ? 'hovered' : ''} ${isCompleted ? 'completed' : ''}`}
+          onMouseEnter={() => setHoveredLinkId(l.id)}
+          onMouseLeave={() => setHoveredLinkId(null)}
+          title={`Cụm liên kết ${l.id}: "${l.enText}"`}
+        >
+          {clusterText}
+          <sup className="link-badge">{getSuperscriptNumber(l.id)}</sup>
+        </span>
+      );
+
+      lastIdx = l.viEnd;
+    });
+
+    if (lastIdx < viText.length) {
+      elements.push(<span>{viText.slice(lastIdx)}</span>);
+    }
+
+    return elements;
+  };
+
+  // Render câu tiếng Anh với trạng thái từng ký tự và con trỏ
+  const renderEnglishLine = () => {
+    if (!card) return null;
+
+    const charStates = typingState.charStates || [];
+    const cursor = typingState.cursor;
+    const isComplete = typingState.isComplete;
+
+    return (
+      <div className="english-line-inner" style={{ position: 'relative', display: 'inline' }}>
+        {charStates.map((cs, idx) => {
+          const isCursorHere = idx === cursor && !isComplete;
+          const char = cs.char;
+
+          // Chế độ nhớ: nếu chưa gõ và chưa hoàn thành -> ẩn ký tự gợi ý
+          let displayChar = char;
+          if (memoryMode && !isComplete && cs.status === 'untyped') {
+            displayChar = char === ' ' ? ' ' : '•';
+          }
+
+          let charClass = `char-span ${cs.status}`;
+          if (cs.status === 'error' && char === ' ') {
+            charClass += ' char-space-error';
+            displayChar = '␣';
+          }
+
+          return (
+            <span key={idx} className={charClass} style={{ position: 'relative' }}>
+              {isCursorHere && (
+                <span
+                  className="caret-cursor"
+                  style={{ left: 0 }}
+                />
+              )}
+              {displayChar}
+            </span>
+          );
+        })}
+
+        {/* Con trỏ ở cuối dòng khi đã gõ đến ký tự cuối cùng */}
+        {cursor === charStates.length && !isComplete && (
+          <span className="caret-cursor" style={{ display: 'inline-block', position: 'relative', height: '1.2em' }} />
+        )}
+      </div>
+    );
+  };
+
+  const metrics = calculateTypingMetrics(typingState);
+
+  return (
+    <div className="stage-container">
+      {/* Thẻ ẩn bắt phím */}
+      <input
+        ref={inputRef}
+        type="text"
+        className="hidden-typing-input"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck="false"
+        inputMode="text"
+        onKeyDown={handleKeyDown}
+        onInput={handleInput}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
+        onFocus={() => setIsBoxFocused(true)}
+        onBlur={() => setIsBoxFocused(false)}
+      />
+
+      {/* Meta Bar */}
+      <div className="card-meta-bar">
+        <div className="card-topic-tag">
+          <span>📚 {card?.topic || 'General'}</span>
+          {card?.level && <span className="card-level-badge">{card.level}</span>}
+        </div>
+        <div className="card-actions-quick">
+          <button
+            className="icon-btn"
+            style={{ width: '30px', height: '30px', fontSize: '0.85rem' }}
+            onClick={onPlaySpeech}
+            title="Đọc lại câu này (Ctrl+P)"
+          >
+            🔊
+          </button>
+          <button
+            className="btn btn-secondary"
+            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+            onClick={onRestartCard}
+            title="Gõ lại thẻ này từ đầu (Ctrl+Backspace / Tab)"
+          >
+            ↺ Gõ lại
+          </button>
+          <button
+            className="btn btn-secondary"
+            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+            onClick={onSkipCard}
+            title="Bỏ qua thẻ này (Ctrl+Enter)"
+          >
+            Bỏ qua ➔
+          </button>
+        </div>
+      </div>
+
+      {/* Hộp gõ song ngữ */}
+      <div
+        className={`bilingual-box ${isBoxFocused ? 'focused' : ''} ${typingState.isComplete ? 'full-review' : ''}`}
+        onClick={handleBoxClick}
+      >
+        {/* Dòng tiếng Việt */}
+        <div className="vietnamese-line">{renderVietnameseLine()}</div>
+
+        {/* Dòng tiếng Anh */}
+        <div className="english-line">{renderEnglishLine()}</div>
+
+        {/* Ghi chú ngữ cảnh (nếu có) khi hoàn thành */}
+        {typingState.isComplete && card?.note && (
+          <div className="note-box">
+            <strong>💡 Ghi chú:</strong> {card.note}
+          </div>
+        )}
+      </div>
+
+      {/* Kết quả sau khi gõ xong thẻ */}
+      {typingState.isComplete && (
+        <div className="result-bar">
+          <div className="result-metrics">
+            <div className="result-item">
+              <span>Tốc độ:</span>
+              <span className="val">{metrics.wpm}</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>WPM</span>
+            </div>
+            <div className="result-item">
+              <span>Độ chính xác:</span>
+              <span className={`val ${metrics.accuracy >= 95 ? 'green' : ''}`}>
+                {metrics.accuracy}%
+              </span>
+            </div>
+            <div className="result-item">
+              <span>Thời gian:</span>
+              <span className="val">{metrics.durationSeconds}s</span>
+            </div>
+          </div>
+
+          <div className="result-next-hint">
+            {autoNextCountdown !== null ? (
+              <span>Tự chuyển thẻ sau <strong>{autoNextCountdown}s</strong>…</span>
+            ) : (
+              <span>
+                Bấm <kbd>Enter</kbd> hoặc <kbd>Space</kbd> để tiếp tục
+              </span>
+            )}
+            <button className="btn btn-primary" onClick={onNextCard} style={{ padding: '0.35rem 0.8rem' }}>
+              Tiếp theo ➔
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

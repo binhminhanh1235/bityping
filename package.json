@@ -1,0 +1,22 @@
+{
+  "name": "bityping",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "mcp:stdio": "node scripts/mcp-stdio.mjs"
+  },
+  "dependencies": {
+    "preact": "^10.25.4"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.9.4",
+    "vite": "^6.1.0",
+    "vitest": "^3.0.5"
+  }
+}
