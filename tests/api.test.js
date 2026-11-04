@@ -135,9 +135,10 @@ note: Sử dụng Redis hoặc Memcached.
     });
     const listRes = await mcpPost(listCtx);
     const listData = await listRes.json();
-    expect(listData.result.tools).toHaveLength(4);
+    expect(listData.result.tools).toHaveLength(5);
     const toolNames = listData.result.tools.map((t) => t.name);
     expect(toolNames).toContain('get_format_spec');
+    expect(toolNames).toContain('get_storage_status');
     expect(toolNames).toContain('create_pack');
 
     // 2. tools/call get_format_spec
