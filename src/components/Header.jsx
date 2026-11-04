@@ -14,7 +14,10 @@ export function Header({
   onOpenSettingsModal,
   onToggleTopicPopover,
   isPopoverOpen = false,
-  onPlaySpeech
+  onPlaySpeech,
+  onSync,
+  isSyncing = false,
+  syncStatusMsg = ''
 }) {
   return (
     <header className="app-header">
@@ -108,6 +111,14 @@ export function Header({
         </button>
 
         {/* Modal Triggers */}
+        <button
+          className={`icon-btn ${isSyncing ? 'spinning' : ''}`}
+          onClick={onSync}
+          title={isSyncing ? 'Đang đồng bộ...' : (syncStatusMsg || 'Đồng bộ hai chiều các kho lưu trữ (Local / GitHub / EdgeOne)')}
+          disabled={isSyncing}
+        >
+          🔄
+        </button>
         <button className="btn btn-primary" onClick={onOpenAddModal} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8125rem' }}>
           + Thêm thẻ
         </button>

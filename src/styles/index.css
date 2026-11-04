@@ -949,3 +949,123 @@ input:checked + .slider:before {
   gap: 0.5rem;
   margin-top: 0.25rem;
 }
+
+/* ── Multi-Storage & Sync Styles ────────────────────────────────────────── */
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.spinning {
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.badge-local {
+  background: color-mix(in srgb, #8b5cf6 20%, transparent);
+  color: #a78bfa;
+  border: 1px solid color-mix(in srgb, #8b5cf6 40%, transparent);
+}
+
+.badge-gist {
+  background: color-mix(in srgb, #10b981 20%, transparent);
+  color: #34d399;
+  border: 1px solid color-mix(in srgb, #10b981 40%, transparent);
+}
+
+.badge-edgeone {
+  background: color-mix(in srgb, #3b82f6 20%, transparent);
+  color: #60a5fa;
+  border: 1px solid color-mix(in srgb, #3b82f6 40%, transparent);
+}
+
+.storage-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.875rem;
+}
+
+.storage-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.storage-card-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.storage-card-desc {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+}
+
+.storage-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.storage-input {
+  width: 100%;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.8125rem;
+  box-sizing: border-box;
+}
+
+.storage-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.storage-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.storage-status-pill.connected {
+  background: color-mix(in srgb, #10b981 15%, transparent);
+  color: #10b981;
+}
+
+.storage-status-pill.waiting {
+  background: color-mix(in srgb, #f59e0b 15%, transparent);
+  color: #f59e0b;
+}
+
+.storage-status-pill.error {
+  background: color-mix(in srgb, #ef4444 15%, transparent);
+  color: #ef4444;
+}
+

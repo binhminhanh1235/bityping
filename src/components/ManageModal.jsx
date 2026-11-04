@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import { fetchPacks, fetchPackById, deletePack, deleteCard, exportAllMarkdown } from '../lib/api.js';
 
-export function ManageModal({ isOpen, onClose, onPacksChanged }) {
+export function ManageModal({ isOpen, onClose, onPacksChanged, onSync, isSyncing = false }) {
   if (!isOpen) return null;
 
   const [packs, setPacks] = useState([]);
@@ -101,6 +101,21 @@ export function ManageModal({ isOpen, onClose, onPacksChanged }) {
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <h3 className="modal-title">Quản Lý Gói Bài Học</h3>
+            {onSync && (
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                onClick={async () => {
+                  await onSync();
+                  await loadPacks();
+                }}
+                disabled={isSyncing}
+                title="Đồng bộ hai chiều giữa Local, GitHub Gist và EdgeOne"
+              >
+                <span className={isSyncing ? 'spinning' : ''}>🔄</span>
+                {isSyncing ? 'Đang sync...' : 'Đồng bộ'}
+              </button>
+            )}
             <button
               className="btn btn-secondary"
               style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
@@ -153,9 +168,15 @@ export function ManageModal({ isOpen, onClose, onPacksChanged }) {
                     <div style={{ fontWeight: 600, fontSize: '0.875rem', color: isSel ? 'var(--accent)' : 'inherit' }}>
                       {p.topic}
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                      <span>{p.cardCount} thẻ</span>
-                      {p.level && <span>{p.level}</span>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                      <span>{p.cardCount || (p.cards || []).length} thẻ</span>
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        {p.sources && p.sources.map((src) => (
+                          <span key={src} className={`source-badge badge-${src}`}>
+                            {src === 'local' ? 'Local' : src === 'gist' ? 'GH' : 'EO'}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 );
@@ -169,7 +190,14 @@ export function ManageModal({ isOpen, onClose, onPacksChanged }) {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
                   <div>
-                    <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{selectedPackData.topic}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <h4 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>{selectedPackData.topic}</h4>
+                      {selectedPackData.sources && selectedPackData.sources.map((src) => (
+                        <span key={src} className={`source-badge badge-${src}`}>
+                          {src === 'local' ? 'Local' : src === 'gist' ? 'GitHub' : 'EdgeOne'}
+                        </span>
+                      ))}
+                    </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
                       ID: {selectedPackData.id} • {selectedPackData.cards?.length || 0} thẻ
                       {selectedPackData.tags?.length > 0 && ` • [${selectedPackData.tags.join(', ')}]`}

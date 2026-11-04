@@ -10,7 +10,7 @@ import { createTypingState } from './lib/typingEngine.js';
 import { pickNextCard } from './lib/picker.js';
 import { speakEnglish } from './lib/speech.js';
 import { getSessionStats, getCardHistory, recordCardCompletion } from './lib/stats.js';
-import { fetchPacks } from './lib/api.js';
+import { fetchPacks, syncStorages } from './lib/api.js';
 
 const SETTINGS_KEY = 'bityping_settings';
 const TOPIC_KEY = 'bityping_selected_topic';
@@ -92,6 +92,10 @@ export function App() {
   const [currentCard, setCurrentCard] = useState(null);
   const [typingState, setTypingState] = useState(null);
 
+  // Trạng thái đồng bộ lưu trữ
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatusMsg, setSyncStatusMsg] = useState('');
+
   // Load packs từ server, kết hợp starter packs nếu server chưa có
   const loadPacks = useCallback(async () => {
     try {
@@ -106,6 +110,24 @@ export function App() {
       setPacks(getStarterPacks());
     }
   }, []);
+
+  const handleSync = useCallback(async () => {
+    setIsSyncing(true);
+    setSyncStatusMsg('Đang đồng bộ...');
+    try {
+      const res = await syncStorages();
+      if (res.success) {
+        setSyncStatusMsg(`Đã đồng bộ ${res.syncedCount} bài học`);
+        await loadPacks();
+      } else {
+        setSyncStatusMsg(`Lỗi đồng bộ: ${res.error || 'Thất bại'}`);
+      }
+    } catch (err) {
+      setSyncStatusMsg(`Lỗi đồng bộ: ${err.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [loadPacks]);
 
   useEffect(() => {
     loadPacks();
@@ -253,6 +275,9 @@ export function App() {
         onToggleTopicPopover={() => setIsPopoverOpen((prev) => !prev)}
         isPopoverOpen={isPopoverOpen}
         onPlaySpeech={playSpeech}
+        onSync={handleSync}
+        isSyncing={isSyncing}
+        syncStatusMsg={syncStatusMsg}
       />
 
       {/* Popover Chủ đề */}
@@ -318,6 +343,8 @@ export function App() {
         onPacksChanged={() => {
           loadPacks();
         }}
+        onSync={handleSync}
+        isSyncing={isSyncing}
       />
 
       <SettingsModal
@@ -326,6 +353,8 @@ export function App() {
         settings={settings}
         onUpdateSettings={updateSettings}
         onResetStats={() => setSessionStats(getSessionStats())}
+        onSync={handleSync}
+        isSyncing={isSyncing}
       />
     </div>
   );

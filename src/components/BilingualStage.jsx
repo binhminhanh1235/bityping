@@ -341,6 +341,7 @@ export function BilingualStage({
             style={{ width: '30px', height: '30px', fontSize: '0.85rem' }}
             onClick={onPlaySpeech}
             title="Đọc lại câu này (Ctrl+P)"
+            aria-label="Đọc lại câu này (Ctrl+P)"
           >
             🔊
           </button>
