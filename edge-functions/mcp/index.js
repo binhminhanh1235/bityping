@@ -217,6 +217,24 @@ async function handleToolCall(name, args = {}, context = {}) {
     case 'get_storage_status': {
       const gistCfg = resolveGistConfig(args, context);
       const cloudKv = isCloudKvAvailable();
+      let gistVerified = false;
+      let gistError = null;
+      let packCount = 0;
+
+      if (gistCfg.enabled) {
+        try {
+          const gRes = await gistGetPacks(gistCfg.token, gistCfg.gistId);
+          if (gRes.ok) {
+            gistVerified = true;
+            packCount = (gRes.packs || []).length;
+          } else {
+            gistError = gRes.error;
+          }
+        } catch (e) {
+          gistError = e.message;
+        }
+      }
+
       return {
         data: {
           cloudKv: {
@@ -225,11 +243,16 @@ async function handleToolCall(name, args = {}, context = {}) {
           },
           gist: {
             configured: gistCfg.enabled,
+            verified: gistVerified,
+            packCount,
             gistId: gistCfg.gistId ? `${gistCfg.gistId.slice(0, 6)}...` : 'Chưa có',
-            hasToken: Boolean(gistCfg.token)
+            hasToken: Boolean(gistCfg.token),
+            error: gistError
           },
           message: gistCfg.enabled
-            ? 'GitHub Gist đã sẵn sàng! Mọi pack tạo mới qua MCP sẽ tự động lưu lên Gist của bạn.'
+            ? (gistVerified
+              ? `GitHub Gist đã kết nối và xác thực thành công! Đang có ${packCount} pack trên Gist.`
+              : `⚠️ Gist đã cấu hình nhưng chưa xác thực được: ${gistError}`)
             : (cloudKv
               ? 'EdgeOne KV sẵn sàng! Pack sẽ được lưu vào Tencent Cloud KV.'
               : '⚠️ CẢNH BÁO: Cả EdgeOne KV và GitHub Gist đều chưa được kích hoạt trên endpoint này. Nếu tạo pack, dữ liệu sẽ chỉ nằm tạm trong RAM worker và mất khi worker đóng. Hãy truyền gistToken & gistId hoặc cấu hình biến môi trường trên EdgeOne!')
@@ -362,7 +385,9 @@ async function handleToolCall(name, args = {}, context = {}) {
       const isPersistent = targets.includes('gist') || targets.includes('edgeone_kv');
       let warning = null;
       if (!isPersistent) {
-        warning = 'CẢNH BÁO: Cả EdgeOne Cloud KV lẫn GitHub Gist đều chưa được kích hoạt trên endpoint này. Dữ liệu chỉ nằm tạm trong worker RAM và sẽ mất khi worker đóng. Hãy truyền gistToken & gistId hoặc thiết lập biến môi trường GITHUB_TOKEN & GIST_ID trên EdgeOne!';
+        warning = gistError
+          ? `Lỗi khi lưu lên GitHub Gist: ${gistError}. Hãy kiểm tra token (cần quyền gist) và gist ID!`
+          : 'CẢNH BÁO: Cả EdgeOne Cloud KV lẫn GitHub Gist đều chưa được kích hoạt trên endpoint này. Dữ liệu chỉ nằm tạm trong worker RAM và sẽ mất khi worker đóng. Hãy truyền gistToken & gistId hoặc thiết lập biến môi trường GITHUB_TOKEN & GIST_ID trên EdgeOne!';
       }
 
       let message = `Đã lưu pack "${topic}" (${packRecord.cards.length} thẻ)`;
@@ -371,7 +396,9 @@ async function handleToolCall(name, args = {}, context = {}) {
       } else if (targets.includes('edgeone_kv')) {
         message += ' vào EdgeOne KV thành công!';
       } else {
-        message += ' vào bộ nhớ tạm worker (Cần Gist để lưu trữ vĩnh viễn)!';
+        message += gistError
+          ? ` vào bộ nhớ tạm worker (Thất bại khi lưu Gist: ${gistError})!`
+          : ' vào bộ nhớ tạm worker (Cần Gist để lưu trữ vĩnh viễn)!';
       }
 
       return {
@@ -386,7 +413,8 @@ async function handleToolCall(name, args = {}, context = {}) {
           duplicates: validation.duplicates,
           targets,
           warning,
-          message
+          message,
+          gistError
         }
       };
     }

@@ -12,11 +12,16 @@ const GIST_DESCRIPTION = 'TypeLearn Knowledge Typing Packs (Private Backup)';
  * @returns {Record<string, string>}
  */
 function makeHeaders(token) {
-  return {
+  const headers = {
     Accept: 'application/vnd.github.v3+json',
     Authorization: `Bearer ${token.trim()}`,
     'Content-Type': 'application/json'
   };
+  // EdgeOne V8 isolate / Node.js requires a User-Agent header for GitHub API requests
+  if (typeof window === 'undefined') {
+    headers['User-Agent'] = 'TypeLearn-App';
+  }
+  return headers;
 }
 
 /**
