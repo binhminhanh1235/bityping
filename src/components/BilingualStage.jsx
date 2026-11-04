@@ -5,6 +5,11 @@ import {
   handleSpaceKey,
   calculateTypingMetrics
 } from '../lib/typingEngine.js';
+import {
+  isSpeechRecognitionSupported,
+  startDictation,
+  compareDictation
+} from '../lib/dictation.js';
 
 /**
  * Hiển thị số nhỏ (superscript) cho badge cụm liên kết
@@ -39,11 +44,27 @@ export function BilingualStage({
   const [autoNextCountdown, setAutoNextCountdown] = useState(null);
   const inputRef = useRef(null);
 
+  // Dictation state: 'idle' | 'listening' | 'result'
+  const [dictState, setDictState] = useState('idle');
+  // { words: [{word, match}], isMatch: bool } | null
+  const [dictResult, setDictResult] = useState(null);
+  const dictControlRef = useRef(null);
+
+  // Detect touch/coarse-pointer device for mobile-only mic button
+  const isMobile =
+    isSpeechRecognitionSupported() &&
+    typeof window !== 'undefined' &&
+    window.matchMedia('(pointer: coarse)').matches;
+
   // Tự động focus vào input khi đổi thẻ hoặc load
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
+    // Reset dictation when card changes
+    setDictState('idle');
+    setDictResult(null);
+    dictControlRef.current?.stop();
   }, [card?.id]);
 
   // Xử lý auto-next sau khi hoàn thành
@@ -147,6 +168,46 @@ export function BilingualStage({
       }
     }
     setTypingState(updated);
+  };
+
+  // ── Dictation ──────────────────────────────────────────────────────────────
+  const handleDictationToggle = () => {
+    if (dictState === 'listening') {
+      // Manual stop (usually not needed; auto-stops on silence)
+      dictControlRef.current?.stop();
+      return;
+    }
+
+    // Reset previous result and start
+    setDictResult(null);
+    setDictState('listening');
+
+    dictControlRef.current = startDictation({
+      lang: 'en-US',
+      onResult: (transcript) => {
+        const target = card?.en || '';
+        const result = compareDictation(transcript, target);
+        setDictResult({ ...result, transcript });
+        setDictState('result');
+      },
+      onError: (err) => {
+        // On error (or no-speech → empty transcript), show empty result
+        const result = compareDictation('', card?.en || '');
+        setDictResult({ ...result, transcript: '' });
+        setDictState('result');
+      },
+      onEnd: () => {
+        // Ensure we leave 'listening' state even without a result event
+        setDictState((prev) => (prev === 'listening' ? 'idle' : prev));
+      }
+    });
+  };
+
+  const handleDictationRetry = () => {
+    setDictState('idle');
+    setDictResult(null);
+    // Refocus hidden input so keyboard still works
+    inputRef.current?.focus();
   };
 
   // Render câu tiếng Việt với các cụm liên kết
@@ -299,6 +360,18 @@ export function BilingualStage({
           >
             Bỏ qua ➔
           </button>
+          {/* Mic button — mobile only (pointer: coarse) + SpeechRecognition available */}
+          {isMobile && (
+            <button
+              className={`icon-btn dictation-btn${dictState === 'listening' ? ' listening' : ''}`}
+              onClick={handleDictationToggle}
+              title={dictState === 'listening' ? 'Đang nghe… (nhấn để dừng)' : 'Đọc câu tiếng Anh (Dictation)'}
+              aria-label={dictState === 'listening' ? 'Đang ghi âm' : 'Bắt đầu đọc'}
+              aria-pressed={dictState === 'listening'}
+            >
+              {dictState === 'listening' ? '⏹' : '🎤'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -320,6 +393,59 @@ export function BilingualStage({
           </div>
         )}
       </div>
+
+      {/* Kết quả Dictation */}
+      {dictState === 'listening' && (
+        <div className="dictation-listening" role="status" aria-live="polite">
+          <span className="dictation-pulse">🎤</span>
+          <span>Đang nghe… hãy đọc câu tiếng Anh</span>
+        </div>
+      )}
+      {dictState === 'result' && dictResult && (
+        <div className={`dictation-result ${dictResult.isMatch ? 'match' : 'mismatch'}`} role="status" aria-live="polite">
+          <div className="dictation-result-header">
+            {dictResult.isMatch ? '✅ Đúng rồi!' : '❌ Chưa khớp'}
+          </div>
+          {dictResult.transcript ? (
+            <>
+              {/* Show verbatim transcript */}
+              <div className="dictation-said">
+                <span className="dictation-label">Bạn đọc:</span>
+                <span style={{ fontSize: '0.85rem', fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+                  "{dictResult.transcript}"
+                </span>
+              </div>
+              {/* Target words highlighted match / miss */}
+              <div className="dictation-said">
+                <span className="dictation-label">Mục tiêu:</span>
+                <span className="dictation-words">
+                  {dictResult.words.map((w, i) => (
+                    <span key={i} className={`dictation-word ${w.match ? 'word-match' : 'word-miss'}`}>
+                      {w.word}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="dictation-said" style={{ color: 'var(--text-secondary)' }}>
+              Không nhận được tiếng nói. Thử lại nhé!
+            </div>
+          )}
+          <div className="dictation-actions">
+            <button className="btn btn-secondary" onClick={handleDictationRetry}
+              style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}>
+              🎤 Thử lại
+            </button>
+            {dictResult.isMatch && (
+              <button className="btn btn-primary" onClick={onNextCard}
+                style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}>
+                Tiếp theo ➔
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Kết quả sau khi gõ xong thẻ */}
       {typingState.isComplete && (

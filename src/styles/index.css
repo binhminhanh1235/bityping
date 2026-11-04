@@ -822,4 +822,130 @@ input:checked + .slider:before {
     min-width: 44px;
     min-height: 44px;
   }
+  /* Prevent action bar overflow on narrow phones (< 380px) */
+  .card-meta-bar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .card-actions-quick {
+    flex-wrap: wrap;
+  }
+}
+
+/* ── Dictation feature ──────────────────────────────────────────────────── */
+
+/* Mic button (mobile-only via isMobile js check, but also hide on hover:hover) */
+.dictation-btn {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 1.1rem;
+  border-radius: 50%;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.dictation-btn.listening {
+  background-color: var(--accent-muted);
+  color: var(--accent);
+  animation: dictation-ring 1.2s ease-in-out infinite;
+}
+
+@keyframes dictation-ring {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); }
+  50%       { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+
+/* Listening status bar */
+.dictation-listening {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 0.9rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.dictation-pulse {
+  animation: dictation-bounce 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes dictation-bounce {
+  from { transform: scale(1); }
+  to   { transform: scale(1.3); }
+}
+
+/* Result panel */
+.dictation-result {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.dictation-result.match {
+  border-color: var(--text-correct-green);
+}
+
+.dictation-result.mismatch {
+  border-color: var(--text-error, #ef4444);
+}
+
+.dictation-result-header {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.dictation-said {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dictation-label {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-size: 0.8rem;
+  padding-top: 0.1rem;
+}
+
+.dictation-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.dictation-word {
+  display: inline-block;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.dictation-word.word-match {
+  color: var(--text-correct-green);
+  background-color: color-mix(in srgb, var(--text-correct-green) 12%, transparent);
+}
+
+.dictation-word.word-miss {
+  color: var(--text-error, #ef4444);
+  background-color: color-mix(in srgb, var(--text-error, #ef4444) 12%, transparent);
+  text-decoration: underline wavy;
+}
+
+.dictation-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
 }
