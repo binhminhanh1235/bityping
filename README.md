@@ -153,9 +153,30 @@ Cấu hình cho Claude Desktop / Antigravity / Cursor (`claude_desktop_config.js
 
 Các công cụ (tools) được cung cấp:
 - `get_format_spec`: Lấy tài liệu định dạng Markdown và quy tắc thẻ.
-- `list_topics`: Liệt kê các chủ đề hiện có và số lượng thẻ.
-- `validate_content`: Xác thực nội dung Markdown trước khi lưu.
-- `create_pack`: Tạo pack mới trực tiếp từ Markdown do AI sinh ra.
+- `list_topics`: Liệt kê các chủ đề hiện có trên Gist, file cục bộ và KV để tránh trùng lặp.
+- `validate_content`: Xác thực nội dung Markdown trước khi lưu (kiểm tra trùng hash với toàn bộ hệ thống).
+- `create_pack`: Tạo pack mới từ Markdown và tự động đồng bộ lên GitHub Gist, `data/local-packs.json` và KV.
+- `get_storage_status`: Kiểm tra trạng thái kết nối GitHub Gist và file lưu trữ.
+- `set_storage_config`: Thiết lập cấu hình GitHub Gist (Token & Gist ID) trực tiếp qua MCP.
+
+### 🔄 Cấu hình GitHub Gist cho MCP Server
+Để MCP Server đẩy pack thẳng vào GitHub Gist của bạn (để hiển thị trên Web ngay lập tức):
+1. **Cách 1 (Tự động từ Web)**: Vào **Cài đặt** trên giao diện Web (`http://localhost:5173`), cấu hình Gist -> hệ thống sẽ tự động tạo file `.storage-config.json` cho MCP.
+2. **Cách 2 (File cấu hình)**: Tạo file `.storage-config.json` ở thư mục gốc:
+```json
+{
+  "gist": {
+    "enabled": true,
+    "token": "ghp_your_personal_access_token",
+    "gistId": "your_gist_id"
+  }
+}
+```
+3. **Cách 3 (Biến môi trường)**: Thêm vào file `.env` hoặc cấu hình MCP:
+```bash
+GITHUB_TOKEN=ghp_your_personal_access_token
+GIST_ID=your_gist_id
+```
 
 ---
 

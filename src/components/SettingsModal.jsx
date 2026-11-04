@@ -58,6 +58,16 @@ export function SettingsModal({
   const updateStorage = (partial) => {
     const updated = saveStorageConfig(partial);
     setStorageCfg(updated);
+    // Tự động đồng bộ với backend dev server nếu có
+    if (updated.gist) {
+      try {
+        fetch('/api/storage-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gist: updated.gist })
+        }).catch(() => {});
+      } catch {}
+    }
   };
 
   // Thao tác kết nối / tự tạo Gist
@@ -69,13 +79,19 @@ export function SettingsModal({
     setGistStatus({ loading: true, msg: 'Đang kiểm tra và khởi tạo Gist...', error: false });
     const res = await gistFindOrCreate(storageCfg.gist.token, storageCfg.gist.gistId);
     if (res.ok) {
-      updateStorage({
-        gist: {
-          ...storageCfg.gist,
-          enabled: true,
-          gistId: res.gistId
-        }
-      });
+      const nextGist = {
+        ...storageCfg.gist,
+        enabled: true,
+        gistId: res.gistId
+      };
+      updateStorage({ gist: nextGist });
+      try {
+        await fetch('/api/storage-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gist: nextGist })
+        });
+      } catch {}
       setGistStatus({
         loading: false,
         msg: res.isNew ? `Đã tạo Secret Gist mới: ${res.gistId}` : `Đã kết nối Gist: ${res.gistId}`,
@@ -210,6 +226,40 @@ export function SettingsModal({
                     </span>
                   )}
                 </div>
+
+                {storageCfg.gist?.enabled && storageCfg.gist?.token && storageCfg.gist?.gistId && (
+                  <div
+                    style={{
+                      marginTop: '0.75rem',
+                      padding: '0.65rem 0.85rem',
+                      background: 'rgba(56, 189, 248, 0.08)',
+                      border: '1px solid rgba(56, 189, 248, 0.25)',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>🤖 AI Agent &amp; MCP Server</span>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '0.15rem 0.5rem', fontSize: '0.7rem' }}
+                        onClick={() => {
+                          const envText = `GITHUB_TOKEN=${storageCfg.gist.token}\nGIST_ID=${storageCfg.gist.gistId}`;
+                          if (navigator.clipboard) {
+                            navigator.clipboard.writeText(envText);
+                          }
+                          alert('Đã sao chép cấu hình .env cho AI Agent:\n' + envText);
+                        }}
+                      >
+                        📋 Copy .env cho MCP
+                      </button>
+                    </div>
+                    <p style={{ margin: 0, lineHeight: 1.4 }}>
+                      Cấu hình Gist tự động liên kết với MCP Server qua <code>.storage-config.json</code>. Khi bạn yêu cầu AI Agent nạp bài qua MCP, pack sẽ được tự động lưu thẳng lên Gist này và hiển thị ngay trên web!
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
