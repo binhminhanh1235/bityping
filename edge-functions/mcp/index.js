@@ -3,7 +3,6 @@ import { validateCards } from '../../shared/validate.js';
 import { generatePackId } from '../../shared/hash.js';
 import { json, corsPreflight } from '../_lib/response.js';
 import { gistGetPacks, gistSavePacks } from '../../src/lib/storage/gist.js';
-import { loadNodeStorageConfig, collectAllTopics } from '../../src/lib/storage/node-sync.js';
 
 const FORMAT_SPEC = `# BiTyping Markdown Format Specification
 
@@ -137,19 +136,16 @@ function resolveGistConfig(args = {}, context = {}) {
     }
   }
 
-  // 2. Kiểm tra EdgeOne Pages Environment Variables
+  // 2. Kiểm tra EdgeOne Pages Environment Variables (context.env)
   if (context?.env) {
     if (!token) token = context.env.GITHUB_TOKEN || context.env.GIST_TOKEN || '';
     if (!gistId) gistId = context.env.GIST_ID || '';
   }
 
-  // 3. Fallback sang local config nếu chạy trên Node / Vite
-  if (!token || !gistId) {
-    try {
-      const nodeCfg = loadNodeStorageConfig();
-      if (nodeCfg?.gist?.token && !token) token = nodeCfg.gist.token;
-      if (nodeCfg?.gist?.gistId && !gistId) gistId = nodeCfg.gist.gistId;
-    } catch {}
+  // 3. Fallback sang globalThis (EdgeOne có thể inject env vào globalThis)
+  if (typeof globalThis !== 'undefined') {
+    if (!token) token = globalThis.GITHUB_TOKEN || globalThis.GIST_TOKEN || '';
+    if (!gistId) gistId = globalThis.GIST_ID || '';
   }
 
   return {
@@ -157,6 +153,41 @@ function resolveGistConfig(args = {}, context = {}) {
     token,
     gistId
   };
+}
+
+async function collectGistTopics(token, gistId) {
+  const res = await gistGetPacks(token, gistId);
+  if (!res.ok || !Array.isArray(res.packs)) return [];
+  const topicMap = new Map();
+  for (const pack of res.packs) {
+    const topic = pack.topic || 'General';
+    if (!topicMap.has(topic)) {
+      topicMap.set(topic, {
+        topic,
+        cardCount: 0,
+        packCount: 0,
+        tags: new Set(),
+        levels: new Set()
+      });
+    }
+    const t = topicMap.get(topic);
+    t.cardCount += (pack.cards || []).length;
+    t.packCount += 1;
+    if (Array.isArray(pack.tags)) pack.tags.forEach((tag) => t.tags.add(tag));
+    if (pack.level) t.levels.add(pack.level);
+  }
+  const list = [];
+  for (const t of topicMap.values()) {
+    list.push({
+      topic: t.topic,
+      cardCount: t.cardCount,
+      packCount: t.packCount,
+      tags: Array.from(t.tags),
+      level: Array.from(t.levels).join(', ') || undefined
+    });
+  }
+  list.sort((a, b) => b.cardCount - a.cardCount || a.topic.localeCompare(b.topic));
+  return list;
 }
 
 /**
@@ -210,7 +241,7 @@ async function handleToolCall(name, args = {}, context = {}) {
       const gistCfg = resolveGistConfig(args, context);
       if (gistCfg.enabled) {
         try {
-          const topics = await collectAllTopics({ config: { gist: gistCfg } });
+          const topics = await collectGistTopics(gistCfg.token, gistCfg.gistId);
           return { data: { topics } };
         } catch {}
       }
