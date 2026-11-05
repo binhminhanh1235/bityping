@@ -56,6 +56,28 @@ export function BilingualStage({
     typeof window !== 'undefined' &&
     window.matchMedia('(pointer: coarse)').matches;
 
+  // Lắng nghe Visual Viewport khi bàn phím ảo bật/tắt trên mobile
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleViewportChange = () => {
+      const vvh = window.visualViewport.height;
+      document.documentElement.style.setProperty('--visual-viewport-height', `${vvh}px`);
+      if (isBoxFocused && inputRef.current) {
+        inputRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    };
+
+    window.visualViewport.addEventListener('resize', handleViewportChange);
+    window.visualViewport.addEventListener('scroll', handleViewportChange);
+    handleViewportChange();
+
+    return () => {
+      window.visualViewport.removeEventListener('resize', handleViewportChange);
+      window.visualViewport.removeEventListener('scroll', handleViewportChange);
+    };
+  }, [isBoxFocused]);
+
   // Tự động focus vào input khi đổi thẻ hoặc load
   useEffect(() => {
     if (inputRef.current) {
@@ -97,6 +119,11 @@ export function BilingualStage({
     if (inputRef.current) {
       inputRef.current.focus();
       setIsBoxFocused(true);
+      if (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) {
+        setTimeout(() => {
+          inputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }, 120);
+      }
     }
   };
 
@@ -337,8 +364,7 @@ export function BilingualStage({
         </div>
         <div className="card-actions-quick">
           <button
-            className="icon-btn"
-            style={{ width: '30px', height: '30px', fontSize: '0.85rem' }}
+            className="icon-btn stage-action-icon"
             onClick={onPlaySpeech}
             title="Đọc lại câu này (Ctrl+P)"
             aria-label="Đọc lại câu này (Ctrl+P)"
@@ -346,18 +372,18 @@ export function BilingualStage({
             🔊
           </button>
           <button
-            className="btn btn-secondary"
-            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+            className="btn btn-secondary stage-action-btn"
             onClick={onRestartCard}
             title="Gõ lại thẻ này từ đầu (Ctrl+Backspace / Tab)"
+            aria-label="Gõ lại thẻ này"
           >
             ↺ Gõ lại
           </button>
           <button
-            className="btn btn-secondary"
-            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+            className="btn btn-secondary stage-action-btn"
             onClick={onSkipCard}
             title="Bỏ qua thẻ này (Ctrl+Enter)"
+            aria-label="Bỏ qua thẻ này"
           >
             Bỏ qua ➔
           </button>
@@ -434,13 +460,13 @@ export function BilingualStage({
             </div>
           )}
           <div className="dictation-actions">
-            <button className="btn btn-secondary" onClick={handleDictationRetry}
-              style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}>
+            <button className="btn btn-secondary stage-action-btn" onClick={handleDictationRetry}
+              style={{ fontSize: '0.8rem' }}>
               🎤 Thử lại
             </button>
             {dictResult.isMatch && (
-              <button className="btn btn-primary" onClick={onNextCard}
-                style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}>
+              <button className="btn btn-primary stage-action-btn next-card-btn" onClick={onNextCard}
+                style={{ fontSize: '0.8rem' }}>
                 Tiếp theo ➔
               </button>
             )}
@@ -453,31 +479,31 @@ export function BilingualStage({
         <div className="result-bar">
           <div className="result-metrics">
             <div className="result-item">
-              <span>Tốc độ:</span>
+              <span className="result-item-label">Tốc độ:</span>
               <span className="val">{metrics.wpm}</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>WPM</span>
+              <span className="result-item-unit">WPM</span>
             </div>
             <div className="result-item">
-              <span>Độ chính xác:</span>
+              <span className="result-item-label">Độ chính xác:</span>
               <span className={`val ${metrics.accuracy >= 95 ? 'green' : ''}`}>
                 {metrics.accuracy}%
               </span>
             </div>
             <div className="result-item">
-              <span>Thời gian:</span>
+              <span className="result-item-label">Thời gian:</span>
               <span className="val">{metrics.durationSeconds}s</span>
             </div>
           </div>
 
           <div className="result-next-hint">
             {autoNextCountdown !== null ? (
-              <span>Tự chuyển thẻ sau <strong>{autoNextCountdown}s</strong>…</span>
+              <span className="result-countdown-hint">Tự chuyển thẻ sau <strong>{autoNextCountdown}s</strong>…</span>
             ) : (
-              <span>
+              <span className="result-keyboard-hint">
                 Bấm <kbd>Enter</kbd> hoặc <kbd>Space</kbd> để tiếp tục
               </span>
             )}
-            <button className="btn btn-primary" onClick={onNextCard} style={{ padding: '0.35rem 0.8rem' }}>
+            <button className="btn btn-primary next-card-btn" onClick={onNextCard}>
               Tiếp theo ➔
             </button>
           </div>

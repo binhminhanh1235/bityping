@@ -75,42 +75,40 @@ export function AddModal({ isOpen, onClose, onPackSaved }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <div className="modal-content add-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header add-modal-header">
+          <div className="add-header-titles">
             <h3 className="modal-title">Thêm Thẻ Bài Học</h3>
-            <div style={{ display: 'flex', gap: '0.35rem' }}>
+            <div className="add-header-tabs">
               <button
-                className={`btn ${activeTab === 'editor' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                className={`btn ${activeTab === 'editor' ? 'btn-primary' : 'btn-secondary'} add-tab-btn`}
                 onClick={() => setActiveTab('editor')}
               >
                 Dán Markdown
               </button>
               <button
-                className={`btn ${activeTab === 'mcp' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                className={`btn ${activeTab === 'mcp' ? 'btn-primary' : 'btn-secondary'} add-tab-btn`}
                 onClick={() => setActiveTab('mcp')}
               >
                 Kết nối AI Agent (MCP)
               </button>
             </div>
           </div>
-          <button className="icon-btn" onClick={onClose} title="Đóng (Esc)">
+          <button className="icon-btn" onClick={onClose} title="Đóng (Esc)" aria-label="Đóng cửa sổ">
             ✕
           </button>
         </div>
 
-        <div className="modal-body">
+        <div className="modal-body add-modal-body">
           {activeTab === 'editor' ? (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <div className="add-editor-toolbar">
                 <span className="form-label" style={{ marginBottom: 0 }}>
                   Nội dung Markdown Pack
                 </span>
                 <button
-                  className="btn btn-secondary"
-                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                  className="btn btn-secondary stage-action-btn"
+                  style={{ fontSize: '0.75rem' }}
                   onClick={handleInsertSample}
                 >
                   📝 Chèn mẫu thử
@@ -248,13 +246,13 @@ export function AddModal({ isOpen, onClose, onPackSaved }) {
           )}
         </div>
 
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>
+        <div className="modal-footer add-modal-footer">
+          <button className="btn btn-secondary stage-action-btn" onClick={onClose}>
             Đóng
           </button>
           {activeTab === 'editor' && (
             <button
-              className="btn btn-primary"
+              className="btn btn-primary stage-action-btn"
               disabled={!validationResult?.valid || isSaving}
               onClick={handleSave}
             >

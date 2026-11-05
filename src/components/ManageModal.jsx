@@ -9,6 +9,7 @@ export function ManageModal({ isOpen, onClose, onPacksChanged, onSync, isSyncing
   const [selectedPackData, setSelectedPackData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [confirmDeletePackId, setConfirmDeletePackId] = useState(null);
+  const [mobileTab, setMobileTab] = useState('packs'); // 'packs' | 'cards'
 
   // Load danh sách pack
   const loadPacks = async () => {
@@ -53,6 +54,7 @@ export function ManageModal({ isOpen, onClose, onPacksChanged, onSync, isSyncing
         // Nếu pack đã bị xoá luôn do hết thẻ
         setSelectedPackId(null);
         setSelectedPackData(null);
+        setMobileTab('packs');
       } else {
         // Cập nhật lại pack data
         setSelectedPackData((prev) => ({
@@ -72,6 +74,7 @@ export function ManageModal({ isOpen, onClose, onPacksChanged, onSync, isSyncing
       setConfirmDeletePackId(null);
       setSelectedPackId(null);
       setSelectedPackData(null);
+      setMobileTab('packs');
       await loadPacks();
       if (onPacksChanged) onPacksChanged();
     }
@@ -95,57 +98,73 @@ export function ManageModal({ isOpen, onClose, onPacksChanged, onSync, isSyncing
     URL.revokeObjectURL(url);
   };
 
+  const handleSelectPack = (packId) => {
+    setSelectedPackId(packId);
+    setMobileTab('cards');
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: '820px', height: '80vh' }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <div className="modal-content manage-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header manage-modal-header">
+          <div className="manage-header-titles">
             <h3 className="modal-title">Quản Lý Gói Bài Học</h3>
-            {onSync && (
+            <div className="manage-header-actions">
+              {onSync && (
+                <button
+                  className="btn btn-secondary manage-sync-btn"
+                  onClick={async () => {
+                    await onSync();
+                    await loadPacks();
+                  }}
+                  disabled={isSyncing}
+                  title="Đồng bộ hai chiều giữa Local, GitHub Gist và EdgeOne"
+                  aria-label="Đồng bộ kho lưu trữ"
+                >
+                  <span className={isSyncing ? 'spinning' : ''}>🔄</span>
+                  <span className="desktop-btn-label">{isSyncing ? 'Đang sync...' : 'Đồng bộ'}</span>
+                </button>
+              )}
               <button
-                className="btn btn-secondary"
-                style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                onClick={async () => {
-                  await onSync();
-                  await loadPacks();
-                }}
-                disabled={isSyncing}
-                title="Đồng bộ hai chiều giữa Local, GitHub Gist và EdgeOne"
+                className="btn btn-secondary manage-export-btn"
+                onClick={handleExportAll}
+                title="Tải về file Markdown sao lưu toàn bộ thẻ"
+                aria-label="Xuất file Markdown"
               >
-                <span className={isSyncing ? 'spinning' : ''}>🔄</span>
-                {isSyncing ? 'Đang sync...' : 'Đồng bộ'}
+                <span>📥</span>
+                <span className="desktop-btn-label">Xuất (.md)</span>
               </button>
-            )}
-            <button
-              className="btn btn-secondary"
-              style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-              onClick={handleExportAll}
-              title="Tải về file Markdown sao lưu toàn bộ thẻ"
-            >
-              📥 Xuất tất cả (.md)
-            </button>
+            </div>
           </div>
-          <button className="icon-btn" onClick={onClose} title="Đóng (Esc)">
+          <button className="icon-btn" onClick={onClose} title="Đóng (Esc)" aria-label="Đóng cửa sổ">
             ✕
           </button>
         </div>
 
-        <div className="modal-body" style={{ display: 'flex', gap: '1rem', padding: 0 }}>
-          {/* Cột trái: Danh sách pack */}
-          <div
-            style={{
-              width: '260px',
-              borderRight: '1px solid var(--border-subtle)',
-              overflowY: 'auto',
-              padding: '0.75rem'
-            }}
+        {/* Mobile Tab Switcher */}
+        <div className="manage-mobile-tabs">
+          <button
+            className={`manage-tab-btn ${mobileTab === 'packs' ? 'active' : ''}`}
+            onClick={() => setMobileTab('packs')}
           >
+            📂 Danh sách gói ({packs.length})
+          </button>
+          <button
+            className={`manage-tab-btn ${mobileTab === 'cards' ? 'active' : ''}`}
+            onClick={() => setMobileTab('cards')}
+            disabled={!selectedPackData}
+          >
+            📋 Chi tiết thẻ ({selectedPackData?.cards?.length || 0})
+          </button>
+        </div>
+
+        <div className="modal-body manage-modal-body">
+          {/* Cột trái: Danh sách pack */}
+          <div className={`manage-sidebar ${mobileTab === 'cards' ? 'mobile-hidden' : ''}`}>
             {isLoading ? (
-              <div style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
-                Đang tải…
-              </div>
+              <div className="manage-loading-state">Đang tải…</div>
             ) : packs.length === 0 ? (
-              <div style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
+              <div className="manage-empty-state">
                 Chưa có pack nào trên server (đang dùng Starter Pack mặc định).
               </div>
             ) : (
@@ -154,23 +173,13 @@ export function ManageModal({ isOpen, onClose, onPacksChanged, onSync, isSyncing
                 return (
                   <div
                     key={p.id}
-                    onClick={() => setSelectedPackId(p.id)}
-                    style={{
-                      padding: '0.6rem 0.75rem',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      marginBottom: '0.4rem',
-                      backgroundColor: isSel ? 'var(--accent-muted)' : 'transparent',
-                      border: isSel ? '1px solid var(--accent)' : '1px solid transparent',
-                      transition: 'all 0.15s ease'
-                    }}
+                    onClick={() => handleSelectPack(p.id)}
+                    className={`manage-pack-item ${isSel ? 'selected' : ''}`}
                   >
-                    <div style={{ fontWeight: 600, fontSize: '0.875rem', color: isSel ? 'var(--accent)' : 'inherit' }}>
-                      {p.topic}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    <div className="manage-pack-title">{p.topic}</div>
+                    <div className="manage-pack-meta">
                       <span>{p.cardCount || (p.cards || []).length} thẻ</span>
-                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      <div className="manage-pack-badges">
                         {p.sources && p.sources.map((src) => (
                           <span key={src} className={`source-badge badge-${src}`}>
                             {src === 'local' ? 'Local' : src === 'gist' ? 'GH' : 'EO'}
@@ -185,38 +194,47 @@ export function ManageModal({ isOpen, onClose, onPacksChanged, onSync, isSyncing
           </div>
 
           {/* Cột phải: Chi tiết các thẻ trong pack */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem' }}>
+          <div className={`manage-main ${mobileTab === 'packs' ? 'mobile-hidden' : ''}`}>
+            {/* Mobile back button to packs */}
+            <div className="manage-mobile-back">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setMobileTab('packs')}
+                style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem', minHeight: '38px' }}
+              >
+                ← Chọn gói khác
+              </button>
+            </div>
+
             {selectedPackData ? (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>{selectedPackData.topic}</h4>
+                <div className="manage-pack-header">
+                  <div className="manage-pack-header-info">
+                    <div className="manage-pack-header-title-row">
+                      <h4 className="manage-pack-header-title">{selectedPackData.topic}</h4>
                       {selectedPackData.sources && selectedPackData.sources.map((src) => (
                         <span key={src} className={`source-badge badge-${src}`}>
                           {src === 'local' ? 'Local' : src === 'gist' ? 'GitHub' : 'EdgeOne'}
                         </span>
                       ))}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    <div className="manage-pack-header-sub">
                       ID: {selectedPackData.id} • {selectedPackData.cards?.length || 0} thẻ
                       {selectedPackData.tags?.length > 0 && ` • [${selectedPackData.tags.join(', ')}]`}
                     </div>
                   </div>
 
-                  <div>
+                  <div className="manage-pack-header-actions">
                     {confirmDeletePackId === selectedPackData.id ? (
-                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <div className="manage-confirm-row">
                         <button
-                          className="btn btn-danger"
-                          style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                          className="btn btn-danger stage-action-btn"
                           onClick={() => handleDeletePack(selectedPackData.id)}
                         >
                           Xác nhận xoá
                         </button>
                         <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                          className="btn btn-secondary stage-action-btn"
                           onClick={() => setConfirmDeletePackId(null)}
                         >
                           Huỷ
@@ -224,9 +242,9 @@ export function ManageModal({ isOpen, onClose, onPacksChanged, onSync, isSyncing
                       </div>
                     ) : (
                       <button
-                        className="btn btn-danger"
-                        style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                        className="btn btn-danger stage-action-btn"
                         onClick={() => setConfirmDeletePackId(selectedPackData.id)}
+                        title="Xoá gói này khỏi kho"
                       >
                         🗑 Xoá cả pack
                       </button>
@@ -235,50 +253,27 @@ export function ManageModal({ isOpen, onClose, onPacksChanged, onSync, isSyncing
                 </div>
 
                 {/* Danh sách thẻ */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div className="manage-cards-list">
                   {(selectedPackData.cards || []).map((c, idx) => (
-                    <div
-                      key={c.id || idx}
-                      style={{
-                        padding: '0.85rem 1rem',
-                        borderRadius: '10px',
-                        backgroundColor: 'var(--bg-subtle)',
-                        border: '1px solid var(--border-subtle)',
-                        position: 'relative'
-                      }}
-                    >
+                    <div key={c.id || idx} className="manage-card-box">
                       <button
-                        style={{
-                          position: 'absolute',
-                          top: '0.6rem',
-                          right: '0.6rem',
-                          color: 'var(--text-secondary)',
-                          fontSize: '0.8rem',
-                          padding: '0.2rem 0.4rem'
-                        }}
+                        className="manage-delete-card-btn"
                         onClick={() => handleDeleteCard(c.id)}
                         title="Xoá thẻ này"
+                        aria-label="Xoá thẻ"
                       >
                         ✕
                       </button>
 
-                      <div style={{ fontSize: '0.9375rem', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
-                        {c.vi}
-                      </div>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem', color: 'var(--accent)', marginBottom: '0.35rem' }}>
-                        {c.en}
-                      </div>
-                      {c.note && (
-                        <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                          💡 {c.note}
-                        </div>
-                      )}
+                      <div className="manage-card-vi">{c.vi}</div>
+                      <div className="manage-card-en">{c.en}</div>
+                      {c.note && <div className="manage-card-note">💡 {c.note}</div>}
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <div className="manage-select-prompt">
                 Chọn một pack ở danh sách bên trái để xem và quản lý các thẻ.
               </div>
             )}
@@ -286,7 +281,7 @@ export function ManageModal({ isOpen, onClose, onPacksChanged, onSync, isSyncing
         </div>
 
         <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>
+          <button className="btn btn-secondary stage-action-btn" onClick={onClose}>
             Đóng
           </button>
         </div>

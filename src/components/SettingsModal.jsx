@@ -473,14 +473,14 @@ export function SettingsModal({
             <h4 style={{ fontSize: '0.8125rem', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600, marginBottom: '0.75rem' }}>
               Dữ liệu phiên
             </h4>
-            <button className="btn btn-secondary" onClick={handleResetSession}>
+            <button className="btn btn-secondary stage-action-btn" onClick={handleResetSession}>
               Đặt lại thống kê phiên về 0
             </button>
           </div>
         </div>
 
         <div className="modal-footer">
-          <button className="btn btn-primary" onClick={onClose}>
+          <button className="btn btn-primary stage-action-btn" onClick={onClose}>
             Xong
           </button>
         </div>
