@@ -4,6 +4,7 @@ import { onRequestPost as validateApi } from '../edge-functions/api/validate.js'
 import { onRequestGet as getPacks, onRequestPost as createPackApi } from '../edge-functions/api/packs/index.js';
 import { onRequestGet as getPackById, onRequestDelete as deletePackApi } from '../edge-functions/api/packs/[id].js';
 import { onRequestPost as rebuildIndexApi } from '../edge-functions/api/rebuild-index.js';
+import { onRequestGet as getTts, onRequestOptions as optTts } from '../edge-functions/api/tts.js';
 import { onRequestPost as mcpPost, onRequestGet as mcpGet } from '../edge-functions/mcp/index.js';
 import { getKv } from '../edge-functions/_lib/store.js';
 
@@ -189,5 +190,30 @@ vi: Không máy chủ [tự động co giãn]{1}.
     expect(resultObj.saved).toBe(true);
     expect(resultObj.topic).toBe('Cloud');
     expect(resultObj.savedCount).toBe(1);
+  });
+
+  it('GET /api/tts validates input and responds appropriately', async () => {
+    // OPTIONS
+    const optRes = await optTts();
+    expect(optRes.status).toBe(204);
+
+    // Missing text
+    const emptyCtx = createMockContext({
+      method: 'GET',
+      url: 'http://localhost/api/tts'
+    });
+    const errRes = await getTts(emptyCtx);
+    expect(errRes.status).toBe(400);
+
+    // Valid text
+    const validCtx = createMockContext({
+      method: 'GET',
+      url: 'http://localhost/api/tts?text=Test&voice=en-US-JennyNeural'
+    });
+    const res = await getTts(validCtx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('audio/mpeg');
+    const buf = await res.arrayBuffer();
+    expect(buf.byteLength).toBeGreaterThan(1000);
   });
 });

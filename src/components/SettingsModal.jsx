@@ -1,5 +1,20 @@
 import { useState, useEffect } from 'preact/hooks';
-import { getEnglishVoices } from '../lib/speech.js';
+import {
+  getEnglishVoices,
+  EDGE_VOICES,
+  DEFAULT_EDGE_VOICE,
+  PIPER_VOICES,
+  DEFAULT_PIPER_VOICE,
+  getPiperStatus,
+  subscribePiperStatus,
+  initPiper,
+  KOKORO_VOICES,
+  DEFAULT_KOKORO_VOICE,
+  subscribeKokoroStatus,
+  getKokoroStatus,
+  initKokoro,
+  speakEnglish
+} from '../lib/speech.js';
 import { resetSessionStats } from '../lib/stats.js';
 import { getStorageConfig, saveStorageConfig } from '../lib/api.js';
 import { gistFindOrCreate } from '../lib/storage/gist.js';
@@ -17,12 +32,25 @@ export function SettingsModal({
   if (!isOpen) return null;
 
   const [voices, setVoices] = useState([]);
+  const [kokoroStatus, setKokoroStatus] = useState(getKokoroStatus);
+  const [piperStatus, setPiperStatus] = useState(getPiperStatus);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [storageCfg, setStorageCfg] = useState(getStorageConfig);
   const [gistStatus, setGistStatus] = useState({ loading: false, msg: '', error: false });
   const [eoHealth, setEoHealth] = useState({ checking: false, connected: false, status: '' });
 
   useEffect(() => {
     getEnglishVoices().then(setVoices);
+  }, []);
+
+  useEffect(() => {
+    const unsub = subscribeKokoroStatus(setKokoroStatus);
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = subscribePiperStatus(setPiperStatus);
+    return unsub;
   }, []);
 
   // Kiểm tra EdgeOne API health khi mở modal
@@ -424,32 +452,436 @@ export function SettingsModal({
               </div>
             )}
 
-            {voices.length > 0 && (
-              <div className="toggle-row">
-                <div className="toggle-info">
-                  <h4>Giọng đọc tiếng Anh</h4>
-                </div>
-                <select
-                  value={settings.voiceURI || ''}
-                  onChange={(e) => handleChange('voiceURI', e.target.value)}
+            {/* Section: Giọng đọc & TTS */}
+            <div className="toggle-row">
+              <div className="toggle-info">
+                <h4>Công nghệ đọc (TTS Engine)</h4>
+                <p>Chọn giọng Cloud AI phòng thu, Web Speech siêu tốc hoặc AI Offline</p>
+              </div>
+              <select
+                value={settings.ttsEngine || 'edge'}
+                onChange={(e) => handleChange('ttsEngine', e.target.value)}
+                style={{
+                  maxWidth: '240px',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '6px',
+                  padding: '0.35rem 0.5rem',
+                  fontSize: '0.8125rem'
+                }}
+              >
+                <option value="edge">Microsoft Edge Neural (Cloud AI - Studio 10/10)</option>
+                <option value="system">Web Speech API (Hệ thống - Cực nhanh 0ms)</option>
+                <option value="piper">Piper Neural TTS (VITS WASM - Siêu nhẹ ~15MB)</option>
+                <option value="kokoro">Kokoro Neural AI (StyleTTS2 WASM Đa Luồng)</option>
+              </select>
+            </div>
+
+            {/* 1. Chi tiết Microsoft Edge Neural TTS */}
+            {(settings.ttsEngine || 'edge') === 'edge' && (
+              <>
+                <div
                   style={{
-                    maxWidth: '180px',
+                    padding: '0.6rem 0.75rem',
                     background: 'var(--bg-subtle)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-subtle)',
                     borderRadius: '6px',
-                    padding: '0.35rem 0.5rem',
+                    border: '1px solid var(--border-subtle)',
+                    marginBottom: '0.75rem',
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary, #94a3b8)'
+                  }}
+                >
+                  ☁️ <strong>Giọng đọc AI Microsoft Azure:</strong> Tự nhiên 10/10 chuẩn phòng thu, ngữ điệu biểu cảm bản ngữ, phản hồi ~200ms qua stream MP3, 0MB tải về. Tự động fallback sang giọng hệ thống nếu offline.
+                </div>
+                <div className="toggle-row">
+                  <div className="toggle-info">
+                    <h4>Giọng đọc Microsoft Azure</h4>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <select
+                      value={settings.edgeVoice || DEFAULT_EDGE_VOICE}
+                      onChange={(e) => handleChange('edgeVoice', e.target.value)}
+                      style={{
+                        maxWidth: '200px',
+                        background: 'var(--bg-subtle)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '6px',
+                        padding: '0.35rem 0.5rem',
+                        fontSize: '0.8125rem'
+                      }}
+                    >
+                      {EDGE_VOICES.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isPreviewPlaying}
+                      onClick={() => {
+                        setIsPreviewPlaying(true);
+                        speakEnglish('Welcome to TypeLearn.', {
+                          engine: 'edge',
+                          edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
+                          rate: settings.speechRate || 1.0,
+                          onEnd: () => setIsPreviewPlaying(false)
+                        });
+                        setTimeout(() => setIsPreviewPlaying(false), 3000);
+                      }}
+                      style={{
+                        padding: '0.35rem 0.6rem',
+                        background: 'var(--bg-subtle)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        cursor: isPreviewPlaying ? 'not-allowed' : 'pointer',
+                        opacity: isPreviewPlaying ? 0.6 : 1
+                      }}
+                      title="Nghe thử giọng này"
+                    >
+                      {isPreviewPlaying ? '...' : '🔊 Thử'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* 2. Chi tiết Web Speech API (Hệ thống) */}
+            {settings.ttsEngine === 'system' && (
+              <>
+                <div
+                  style={{
+                    padding: '0.6rem 0.75rem',
+                    background: 'var(--bg-subtle)',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-subtle)',
+                    marginBottom: '0.75rem',
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary, #94a3b8)'
+                  }}
+                >
+                  ⚡ <strong>Tối ưu tốc độ cao:</strong> Phản hồi tức thì (0ms latency), không tiêu tốn RAM hay CPU của máy. Tận dụng trực tiếp giọng đọc AI phần cứng trong hệ điều hành (Apple Samantha Enhanced, Ava, Windows Natural...).
+                </div>
+                {voices.length > 0 && (
+                  <div className="toggle-row">
+                    <div className="toggle-info">
+                      <h4>Giọng đọc hệ thống</h4>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <select
+                        value={settings.voiceURI || ''}
+                        onChange={(e) => handleChange('voiceURI', e.target.value)}
+                        style={{
+                          maxWidth: '200px',
+                          background: 'var(--bg-subtle)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: '6px',
+                          padding: '0.35rem 0.5rem',
+                          fontSize: '0.8125rem'
+                        }}
+                      >
+                        <option value="">Mặc định (Ưu tiên giọng Enhanced/Natural)</option>
+                        {voices.map((v) => (
+                          <option key={v.voiceURI} value={v.voiceURI}>
+                            {v.name} ({v.lang})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={isPreviewPlaying}
+                        onClick={() => {
+                          setIsPreviewPlaying(true);
+                          speakEnglish('Welcome to TypeLearn.', {
+                            engine: 'system',
+                            voiceURI: settings.voiceURI,
+                            rate: settings.speechRate || 1.0,
+                            onEnd: () => setIsPreviewPlaying(false)
+                          });
+                          setTimeout(() => setIsPreviewPlaying(false), 2000);
+                        }}
+                        style={{
+                          padding: '0.35rem 0.6rem',
+                          background: 'var(--bg-subtle)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          cursor: isPreviewPlaying ? 'not-allowed' : 'pointer',
+                          opacity: isPreviewPlaying ? 0.6 : 1
+                        }}
+                        title="Nghe thử giọng này"
+                      >
+                        {isPreviewPlaying ? '...' : '🔊 Thử'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 3. Chi tiết Piper Neural TTS (VITS WASM) */}
+            {settings.ttsEngine === 'piper' && (
+              <>
+                <div
+                  style={{
+                    padding: '0.6rem 0.75rem',
+                    background: 'var(--bg-subtle)',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-subtle)',
+                    marginBottom: '0.75rem',
                     fontSize: '0.8125rem'
                   }}
                 >
-                  <option value="">Mặc định trình duyệt</option>
-                  {voices.map((v) => (
-                    <option key={v.voiceURI} value={v.voiceURI}>
-                      {v.name} ({v.lang})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Mô hình Piper (VITS):</span>
+                    {piperStatus.state === 'ready' && (
+                      <span style={{ color: 'var(--color-success, #10b981)', fontWeight: 600 }}>
+                        ✓ Sẵn sàng (VITS WebAssembly Offline)
+                      </span>
+                    )}
+                    {piperStatus.state === 'loading' && (
+                      <span style={{ color: 'var(--accent, #6366f1)', fontWeight: 600 }}>
+                        {piperStatus.progress >= 95 ? 'Đang hoàn tất...' : `Đang nạp ${piperStatus.progress}%`}
+                      </span>
+                    )}
+                    {piperStatus.state === 'error' && (
+                      <span style={{ color: 'var(--color-error, #ef4444)', fontWeight: 500 }}>
+                        {piperStatus.error || 'Lỗi nạp mô hình (Dùng fallback)'}
+                      </span>
+                    )}
+                    {piperStatus.state === 'idle' && (
+                      <button
+                        type="button"
+                        onClick={() => initPiper(settings.piperVoice || DEFAULT_PIPER_VOICE)}
+                        style={{
+                          background: 'var(--accent, #6366f1)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '0.2rem 0.6rem',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Tải mô hình (~15MB)
+                      </button>
+                    )}
+                  </div>
+                  {piperStatus.state === 'loading' && (
+                    <div
+                      style={{
+                        marginTop: '0.5rem',
+                        width: '100%',
+                        height: '4px',
+                        background: 'var(--border-subtle)',
+                        borderRadius: '2px',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.max(5, piperStatus.progress)}%`,
+                          height: '100%',
+                          background: 'var(--accent, #6366f1)',
+                          transition: 'width 0.25s ease'
+                        }}
+                      ></div>
+                    </div>
+                  )}
+                  <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary, #94a3b8)' }}>
+                    📦 Mạng nơ-ron VITS tối ưu cho WebAssembly, kích thước siêu nhẹ (~15MB), chạy 100% offline trực tiếp trên CPU trình duyệt (~250ms).
+                  </p>
+                </div>
+                <div className="toggle-row">
+                  <div className="toggle-info">
+                    <h4>Giọng đọc Piper (VITS)</h4>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <select
+                      value={settings.piperVoice || DEFAULT_PIPER_VOICE}
+                      onChange={(e) => handleChange('piperVoice', e.target.value)}
+                      style={{
+                        maxWidth: '200px',
+                        background: 'var(--bg-subtle)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '6px',
+                        padding: '0.35rem 0.5rem',
+                        fontSize: '0.8125rem'
+                      }}
+                    >
+                      {PIPER_VOICES.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isPreviewPlaying}
+                      onClick={() => {
+                        setIsPreviewPlaying(true);
+                        speakEnglish('Welcome to TypeLearn.', {
+                          engine: 'piper',
+                          piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
+                          rate: settings.speechRate || 1.0,
+                          onEnd: () => setIsPreviewPlaying(false)
+                        });
+                        setTimeout(() => setIsPreviewPlaying(false), 3000);
+                      }}
+                      style={{
+                        padding: '0.35rem 0.6rem',
+                        background: 'var(--bg-subtle)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        cursor: isPreviewPlaying ? 'not-allowed' : 'pointer',
+                        opacity: isPreviewPlaying ? 0.6 : 1
+                      }}
+                      title="Nghe thử giọng này"
+                    >
+                      {isPreviewPlaying ? '...' : '🔊 Thử'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* 4. Chi tiết Kokoro Neural AI */}
+            {settings.ttsEngine === 'kokoro' && (
+              <>
+                <div
+                  style={{
+                    padding: '0.6rem 0.75rem',
+                    background: 'var(--bg-subtle)',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-subtle)',
+                    marginBottom: '0.75rem',
+                    fontSize: '0.8125rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Mô hình Kokoro (q8):</span>
+                    {kokoroStatus.state === 'ready' && (
+                      <span style={{ color: 'var(--color-success, #10b981)', fontWeight: 600 }}>
+                        ✓ Sẵn sàng (WASM Đa Luồng + SIMD)
+                      </span>
+                    )}
+                    {kokoroStatus.state === 'loading' && (
+                      <span style={{ color: 'var(--accent, #6366f1)', fontWeight: 600 }}>
+                        {kokoroStatus.progress >= 95 ? 'Đang khởi động (Warm-up)...' : `Đang nạp ${kokoroStatus.progress}%`}
+                      </span>
+                    )}
+                    {kokoroStatus.state === 'error' && (
+                      <span style={{ color: 'var(--color-error, #ef4444)', fontWeight: 500 }}>
+                        Chưa sẵn sàng (Dùng fallback)
+                      </span>
+                    )}
+                    {kokoroStatus.state === 'idle' && (
+                      <button
+                        type="button"
+                        onClick={initKokoro}
+                        style={{
+                          background: 'var(--accent, #6366f1)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '0.2rem 0.6rem',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Tải mô hình (~86MB)
+                      </button>
+                    )}
+                  </div>
+                  {kokoroStatus.state === 'loading' && (
+                    <div
+                      style={{
+                        marginTop: '0.5rem',
+                        width: '100%',
+                        height: '4px',
+                        background: 'var(--border-subtle)',
+                        borderRadius: '2px',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.max(5, kokoroStatus.progress)}%`,
+                          height: '100%',
+                          background: 'var(--accent, #6366f1)',
+                          transition: 'width 0.25s ease'
+                        }}
+                      ></div>
+                    </div>
+                  )}
+                  <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary, #94a3b8)' }}>
+                    * Tự động nạp trước (pre-cache) thẻ tiếp theo trong nền.
+                  </p>
+                </div>
+
+                <div className="toggle-row">
+                  <div className="toggle-info">
+                    <h4>Giọng đọc Kokoro</h4>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <select
+                      value={settings.kokoroVoice || DEFAULT_KOKORO_VOICE}
+                      onChange={(e) => handleChange('kokoroVoice', e.target.value)}
+                      style={{
+                        maxWidth: '200px',
+                        background: 'var(--bg-subtle)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '6px',
+                        padding: '0.35rem 0.5rem',
+                        fontSize: '0.8125rem'
+                      }}
+                    >
+                      {KOKORO_VOICES.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isPreviewPlaying}
+                      onClick={() => {
+                        setIsPreviewPlaying(true);
+                        speakEnglish('Welcome to TypeLearn.', {
+                          engine: 'kokoro',
+                          kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
+                          rate: settings.speechRate || 1.0,
+                          onEnd: () => setIsPreviewPlaying(false)
+                        });
+                        setTimeout(() => setIsPreviewPlaying(false), 3000);
+                      }}
+                      style={{
+                        padding: '0.35rem 0.6rem',
+                        background: 'var(--bg-subtle)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        cursor: isPreviewPlaying ? 'not-allowed' : 'pointer',
+                        opacity: isPreviewPlaying ? 0.6 : 1
+                      }}
+                      title="Nghe thử giọng này"
+                    >
+                      {isPreviewPlaying ? '...' : '🔊 Thử'}
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
 
             <div className="toggle-row">

@@ -5,6 +5,7 @@ import { onRequestPost as validateApi, onRequestOptions as optValidate } from '.
 import { onRequestGet as getPacks, onRequestPost as createPackApi, onRequestOptions as optPacks } from './edge-functions/api/packs/index.js';
 import { onRequestGet as getPackById, onRequestDelete as deletePackApi, onRequestOptions as optPackById } from './edge-functions/api/packs/[id].js';
 import { onRequestPost as rebuildIndexApi, onRequestOptions as optRebuild } from './edge-functions/api/rebuild-index.js';
+import { onRequestGet as getTts, onRequestOptions as optTts } from './edge-functions/api/tts.js';
 import { onRequestGet as mcpGet, onRequestPost as mcpPost, onRequestOptions as optMcp } from './edge-functions/mcp/index.js';
 import { getKv } from './edge-functions/_lib/store.js';
 import { loadNodeStorageConfig, saveNodeStorageConfig, readLocalPacks } from './src/lib/storage/node-sync.js';
@@ -132,6 +133,8 @@ function edgeoneDevPlugin() {
             if (method === 'OPTIONS') handler = optPackById;
             else if (method === 'DELETE') handler = deletePackApi;
             else handler = getPackById;
+          } else if (pathname === '/api/tts') {
+            handler = method === 'OPTIONS' ? optTts : getTts;
           } else if (pathname === '/mcp' || pathname === '/mcp/') {
             if (method === 'OPTIONS') handler = optMcp;
             else if (method === 'POST') handler = mcpPost;
@@ -155,8 +158,8 @@ function edgeoneDevPlugin() {
             res.setHeader(key, val);
           });
 
-          const responseText = await webResponse.text();
-          res.end(responseText);
+          const responseBuffer = Buffer.from(await webResponse.arrayBuffer());
+          res.end(responseBuffer);
         } catch (err) {
           console.error('[EdgeOne Dev Server Error]:', err);
           res.statusCode = 500;
@@ -170,8 +173,15 @@ function edgeoneDevPlugin() {
 
 export default defineConfig({
   plugins: [preact(), edgeoneDevPlugin()],
+  worker: {
+    format: 'es'
+  },
   server: {
     port: 5173,
-    host: true
+    host: true,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless'
+    }
   }
 });

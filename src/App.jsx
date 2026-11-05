@@ -8,7 +8,14 @@ import { SettingsModal } from './components/SettingsModal.jsx';
 import { getStarterPacks } from './data/starterPacks.js';
 import { createTypingState } from './lib/typingEngine.js';
 import { pickNextCard } from './lib/picker.js';
-import { speakEnglish } from './lib/speech.js';
+import {
+  speakEnglish,
+  preloadSpeech,
+  initKokoro,
+  DEFAULT_EDGE_VOICE,
+  DEFAULT_PIPER_VOICE,
+  DEFAULT_KOKORO_VOICE
+} from './lib/speech.js';
 import { getSessionStats, getCardHistory, recordCardCompletion } from './lib/stats.js';
 import { fetchPacks, syncStorages } from './lib/api.js';
 
@@ -25,6 +32,10 @@ const DEFAULT_SETTINGS = {
   memoryMode: false,
   autoSpeakOnStart: false,
   autoSpeakOnEnd: false,
+  ttsEngine: 'edge',
+  edgeVoice: DEFAULT_EDGE_VOICE,
+  piperVoice: DEFAULT_PIPER_VOICE,
+  kokoroVoice: DEFAULT_KOKORO_VOICE,
   voiceURI: '',
   speechRate: 1.0
 };
@@ -133,6 +144,11 @@ export function App() {
     loadPacks();
   }, [loadPacks]);
 
+  // Tải trước mô hình Kokoro TTS trong background
+  useEffect(() => {
+    initKokoro();
+  }, []);
+
   // Tính danh sách topics
   const topics = (() => {
     const map = new Map();
@@ -172,10 +188,35 @@ export function App() {
 
     if (settings.autoSpeakOnStart) {
       speakEnglish(card.en, {
+        engine: settings.ttsEngine || 'edge',
+        edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
+        piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
+        kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
         voiceURI: settings.voiceURI,
         rate: settings.speechRate
       });
     }
+
+    // Tải trước (pre-cache) âm thanh cho thẻ tiếp theo trong nền trong lúc người dùng đang gõ thẻ hiện tại
+    // Điều này loại bỏ hoàn toàn độ trễ (0ms) khi chuyển sang thẻ kế tiếp
+    try {
+      const allTopicCards = selectedTopic === ALL_TOPIC
+        ? packs.flatMap((p) => p.cards || [])
+        : (packs.find((p) => p.topic === selectedTopic)?.cards || []);
+      const remainingCandidates = allTopicCards.filter((c) => c && c.id !== card.id);
+      if (remainingCandidates.length > 0) {
+        const nextOne = remainingCandidates[Math.floor(Math.random() * remainingCandidates.length)];
+        if (nextOne?.en) {
+          preloadSpeech(nextOne.en, {
+            engine: settings.ttsEngine || 'edge',
+            edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
+            piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
+            kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
+            rate: settings.speechRate
+          });
+        }
+      }
+    } catch {}
   }, [packs, selectedTopic, recentCardIds, settings, cardHistory]);
 
   // Khởi tạo thẻ đầu tiên khi packs hoặc topic thay đổi
@@ -211,6 +252,10 @@ export function App() {
   const playSpeech = () => {
     if (!currentCard) return;
     speakEnglish(currentCard.en, {
+      engine: settings.ttsEngine || 'edge',
+      edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
+      piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
+      kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
       voiceURI: settings.voiceURI,
       rate: settings.speechRate
     });
@@ -224,6 +269,10 @@ export function App() {
 
     if (settings.autoSpeakOnEnd && currentCard) {
       speakEnglish(currentCard.en, {
+        engine: settings.ttsEngine || 'edge',
+        edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
+        piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
+        kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
         voiceURI: settings.voiceURI,
         rate: settings.speechRate
       });

@@ -12,6 +12,9 @@
     "mcp:stdio": "node scripts/mcp-stdio.mjs"
   },
   "dependencies": {
+    "@mintplex-labs/piper-tts-web": "^1.0.5",
+    "kokoro-js": "^1.2.1",
+    "msedge-tts": "^2.1.1",
     "preact": "^10.25.4"
   },
   "devDependencies": {
