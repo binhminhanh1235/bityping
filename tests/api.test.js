@@ -216,4 +216,71 @@ vi: Không máy chủ [tự động co giãn]{1}.
     const buf = await res.arrayBuffer();
     expect(buf.byteLength).toBeGreaterThan(1000);
   });
+
+  it('GET /api/packs and topics seamlessly sync from Gist via context.env without client tokens', async () => {
+    // Mock Gist fetch
+    const originalFetch = globalThis.fetch;
+    const mockPacks = [
+      {
+        id: 'pack-env-gist-1',
+        topic: 'Distributed Systems',
+        tags: ['consensus', 'raft'],
+        level: 'C1',
+        cards: [
+          {
+            id: 'card-ds-1',
+            en: 'Raft provides consensus.',
+            vi: 'Raft cung cấp sự đồng thuận.',
+            links: []
+          }
+        ],
+        createdAt: new Date().toISOString()
+      }
+    ];
+
+    globalThis.fetch = async (url, options = {}) => {
+      const urlStr = String(url);
+      if (urlStr.includes('api.github.com/gists/mock-gist-id')) {
+        return new Response(
+          JSON.stringify({
+            files: {
+              'typelearn-data.json': {
+                content: JSON.stringify({
+                  version: 1,
+                  packs: mockPacks
+                })
+              }
+            }
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return originalFetch(url, options);
+    };
+
+    try {
+      const envCtx = {
+        request: new Request('http://localhost/api/packs?all=1'),
+        env: {
+          GITHUB_TOKEN: 'ghp_mock_token_123',
+          GIST_ID: 'mock-gist-id'
+        }
+      };
+
+      const packsRes = await getPacks(envCtx);
+      expect(packsRes.status).toBe(200);
+      const packsData = await packsRes.json();
+      expect(packsData.packs).toHaveLength(1);
+      expect(packsData.packs[0].topic).toBe('Distributed Systems');
+
+      // Test topics
+      const topicsRes = await getTopics({ env: envCtx.env });
+      const topicsData = await topicsRes.json();
+      expect(topicsData.topics).toHaveLength(1);
+      expect(topicsData.topics[0].topic).toBe('Distributed Systems');
+      expect(topicsData.topics[0].cardCount).toBe(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

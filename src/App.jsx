@@ -11,10 +11,9 @@ import { pickNextCard } from './lib/picker.js';
 import {
   speakEnglish,
   preloadSpeech,
-  initKokoro,
+  getEnglishVoices,
   DEFAULT_EDGE_VOICE,
-  DEFAULT_PIPER_VOICE,
-  DEFAULT_KOKORO_VOICE
+  DEFAULT_PIPER_VOICE
 } from './lib/speech.js';
 import { getSessionStats, getCardHistory, recordCardCompletion } from './lib/stats.js';
 import { fetchPacks, syncStorages } from './lib/api.js';
@@ -32,10 +31,9 @@ const DEFAULT_SETTINGS = {
   memoryMode: false,
   autoSpeakOnStart: false,
   autoSpeakOnEnd: false,
-  ttsEngine: 'system',
+  ttsEngine: 'edge',
   edgeVoice: DEFAULT_EDGE_VOICE,
   piperVoice: DEFAULT_PIPER_VOICE,
-  kokoroVoice: DEFAULT_KOKORO_VOICE,
   voiceURI: '',
   speechRate: 1.0
 };
@@ -144,9 +142,9 @@ export function App() {
     loadPacks();
   }, [loadPacks]);
 
-  // Tải trước mô hình Kokoro TTS trong background
+  // Nạp sẵn giọng đọc tiếng Anh tự nhiên trong nền
   useEffect(() => {
-    initKokoro();
+    getEnglishVoices();
   }, []);
 
   // Tính danh sách topics
@@ -188,10 +186,9 @@ export function App() {
 
     if (settings.autoSpeakOnStart) {
       speakEnglish(card.en, {
-        engine: settings.ttsEngine || 'system',
+        engine: settings.ttsEngine || 'edge',
         edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
         piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
-        kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
         voiceURI: settings.voiceURI,
         rate: settings.speechRate
       });
@@ -208,10 +205,9 @@ export function App() {
         const nextOne = remainingCandidates[Math.floor(Math.random() * remainingCandidates.length)];
         if (nextOne?.en) {
           preloadSpeech(nextOne.en, {
-            engine: settings.ttsEngine || 'system',
+            engine: settings.ttsEngine || 'edge',
             edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
             piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
-            kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
             rate: settings.speechRate
           });
         }
@@ -255,7 +251,6 @@ export function App() {
       engine: settings.ttsEngine || 'edge',
       edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
       piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
-      kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
       voiceURI: settings.voiceURI,
       rate: settings.speechRate
     });
@@ -269,10 +264,9 @@ export function App() {
 
     if (settings.autoSpeakOnEnd && currentCard) {
       speakEnglish(currentCard.en, {
-        engine: settings.ttsEngine || 'system',
+        engine: settings.ttsEngine || 'edge',
         edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
         piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
-        kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
         voiceURI: settings.voiceURI,
         rate: settings.speechRate
       });

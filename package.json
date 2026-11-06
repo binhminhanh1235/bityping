@@ -13,9 +13,7 @@
   },
   "dependencies": {
     "@mintplex-labs/piper-tts-web": "^1.0.5",
-    "kokoro-js": "^1.2.1",
     "msedge-tts": "^2.1.1",
-    "onnxruntime-web": "1.18.0",
     "preact": "^10.25.4"
   },
   "devDependencies": {

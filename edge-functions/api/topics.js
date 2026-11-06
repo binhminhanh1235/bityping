@@ -1,8 +1,8 @@
 import { listTopics } from '../_lib/store.js';
 import { json, corsPreflight } from '../_lib/response.js';
 
-export async function onRequestGet() {
-  const topics = await listTopics();
+export async function onRequestGet(context = {}) {
+  const topics = await listTopics(context);
   return json({ topics });
 }
 

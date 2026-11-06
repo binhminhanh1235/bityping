@@ -3,7 +3,6 @@
  * 1. Microsoft Edge Neural TTS (Cloud AI - Chuẩn phòng thu, ~200ms, 0MB)
  * 2. Web Speech API (Hệ thống / Enhanced - Tức thì 0ms, 0MB, 100% Offline)
  * 3. Piper Neural TTS (VITS WASM - Siêu nhẹ ~15MB, 100% Offline)
- * 4. Kokoro Neural AI (StyleTTS2 WASM Đa Luồng + SIMD, 100% Offline)
  */
 
 // ---------------------------------------------------------------------------
@@ -31,53 +30,6 @@ export const PIPER_VOICES = [
 ];
 
 export const DEFAULT_PIPER_VOICE = 'en_US-lessac-medium';
-
-// ---------------------------------------------------------------------------
-// 3. Cấu hình giọng Kokoro Neural TTS
-// ---------------------------------------------------------------------------
-export const KOKORO_VOICES = [
-  { id: 'af_heart', name: 'Heart (Nữ Mỹ - Tự nhiên, Ấm áp)', lang: 'en-US', gender: 'female' },
-  { id: 'af_bella', name: 'Bella (Nữ Mỹ - Tươi sáng)', lang: 'en-US', gender: 'female' },
-  { id: 'am_adam', name: 'Adam (Nam Mỹ - Tự nhiên)', lang: 'en-US', gender: 'male' },
-  { id: 'bf_emma', name: 'Emma (Nữ Anh - Chuẩn)', lang: 'en-GB', gender: 'female' },
-  { id: 'bm_george', name: 'George (Nam Anh - Chuẩn)', lang: 'en-GB', gender: 'male' }
-];
-
-export const DEFAULT_KOKORO_VOICE = 'af_heart';
-
-// ---------------------------------------------------------------------------
-// Trạng thái và Listener cho Kokoro
-// ---------------------------------------------------------------------------
-let kokoroStatus = {
-  state: 'idle', // 'idle' | 'loading' | 'ready' | 'error'
-  progress: 0,
-  device: null,
-  error: null
-};
-
-const kokoroStatusListeners = new Set();
-
-function notifyKokoroStatus() {
-  for (const listener of kokoroStatusListeners) {
-    try {
-      listener({ ...kokoroStatus });
-    } catch (err) {
-      console.warn('[Speech] Lỗi trong listener Kokoro:', err);
-    }
-  }
-}
-
-export function subscribeKokoroStatus(listener) {
-  kokoroStatusListeners.add(listener);
-  listener({ ...kokoroStatus });
-  return () => {
-    kokoroStatusListeners.delete(listener);
-  };
-}
-
-export function getKokoroStatus() {
-  return { ...kokoroStatus };
-}
 
 // ---------------------------------------------------------------------------
 // Trạng thái và Listener cho Piper
@@ -147,99 +99,12 @@ export async function initPiper(voiceId = DEFAULT_PIPER_VOICE) {
 const MAX_CACHE_SIZE = 80;
 const audioCache = new Map();
 
-function getKokoroCacheKey(text, voice, speed) {
-  return `kokoro:${voice}:${Number(speed).toFixed(1)}:${text.trim().toLowerCase()}`;
-}
-
 function getEdgeCacheKey(text, voice, speed) {
   return `edge:${voice}:${Number(speed).toFixed(1)}:${text.trim().toLowerCase()}`;
 }
 
 function getPiperCacheKey(text, voice, speed) {
   return `piper:${voice}:${Number(speed).toFixed(1)}:${text.trim().toLowerCase()}`;
-}
-
-// ---------------------------------------------------------------------------
-// Quản lý Web Worker (Kokoro)
-// ---------------------------------------------------------------------------
-let worker = null;
-let reqCounter = 0;
-const pendingRequests = new Map();
-
-function getWorker() {
-  if (typeof window === 'undefined') return null;
-  if (!worker) {
-    try {
-      worker = new Worker(new URL('../workers/tts.worker.js', import.meta.url), {
-        type: 'module'
-      });
-
-      worker.onmessage = (e) => {
-        const { type, payload } = e.data || {};
-
-        if (type === 'PROGRESS') {
-          kokoroStatus.state = 'loading';
-          if (typeof payload.progress === 'number') {
-            const pct = Math.round(payload.progress <= 1 ? payload.progress * 100 : payload.progress);
-            kokoroStatus.progress = Math.max(kokoroStatus.progress, pct);
-          }
-          notifyKokoroStatus();
-        } else if (type === 'READY') {
-          kokoroStatus.state = 'ready';
-          kokoroStatus.progress = 100;
-          kokoroStatus.device = payload?.device || 'wasm';
-          kokoroStatus.error = null;
-          notifyKokoroStatus();
-        } else if (type === 'INIT_ERROR') {
-          kokoroStatus.state = 'error';
-          kokoroStatus.error = payload?.error || 'Không thể nạp mô hình KokoroTTS';
-          notifyKokoroStatus();
-        } else if (type === 'SYNTH_SUCCESS') {
-          const { id, audioData, samplingRate } = payload || {};
-          const resolver = pendingRequests.get(id);
-          if (resolver) {
-            pendingRequests.delete(id);
-            resolver.resolve({ audioData, samplingRate });
-          }
-        } else if (type === 'SYNTH_ERROR') {
-          const { id, error } = payload || {};
-          const resolver = pendingRequests.get(id);
-          if (resolver) {
-            pendingRequests.delete(id);
-            resolver.reject(new Error(error || 'Lỗi sinh âm thanh Kokoro'));
-          }
-        }
-      };
-
-      worker.onerror = (err) => {
-        console.error('[Speech Worker Error]:', err);
-        kokoroStatus.state = 'error';
-        kokoroStatus.error = err.message || 'Worker error';
-        notifyKokoroStatus();
-      };
-    } catch (err) {
-      console.warn('[Speech] Không thể khởi tạo Web Worker:', err);
-      kokoroStatus.state = 'error';
-      kokoroStatus.error = err.message;
-      notifyKokoroStatus();
-      return null;
-    }
-  }
-  return worker;
-}
-
-export function initKokoro() {
-  if (typeof window === 'undefined') return;
-  if (kokoroStatus.state === 'ready' || kokoroStatus.state === 'loading') return;
-
-  const w = getWorker();
-  if (!w) return;
-
-  kokoroStatus.state = 'loading';
-  kokoroStatus.progress = 0;
-  notifyKokoroStatus();
-
-  w.postMessage({ type: 'INIT' });
 }
 
 // ---------------------------------------------------------------------------
@@ -311,68 +176,13 @@ function playBlobUrl(blobUrl, onStart, onEnd, onError) {
   }
 }
 
-/**
- * Mã hóa dữ liệu Float32Array sang mảng byte 16-bit PCM WAV
- */
-function encodeWAV16Bit(samples, sampleRate = 24000) {
-  const buffer = new ArrayBuffer(44 + samples.length * 2);
-  const view = new DataView(buffer);
-
-  function writeString(offset, str) {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i));
-    }
-  }
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * 2, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM 16-bit
-  view.setUint16(22, 1, true); // mono
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, 'data');
-  view.setUint32(40, samples.length * 2, true);
-
-  let offset = 44;
-  for (let i = 0; i < samples.length; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    offset += 2;
-  }
-
-  return buffer;
-}
-
-function playKokoroAudio(audioData, samplingRate, onStart, onEnd) {
-  if (typeof window === 'undefined') return;
-  stopSpeech();
-
-  try {
-    const wavBuffer = encodeWAV16Bit(audioData, samplingRate);
-    const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-    const url = URL.createObjectURL(blob);
-    currentAudioUrl = url;
-
-    playBlobUrl(url, onStart, onEnd);
-  } catch (err) {
-    console.error('[Speech] Lỗi phát âm thanh Kokoro:', err);
-    cleanupCurrentAudio();
-    if (onEnd) onEnd();
-  }
-}
-
 // ---------------------------------------------------------------------------
-// 4. Web Speech API (Hệ thống - Enhanced)
+// 3. Web Speech API (Hệ thống - Enhanced / Natural)
 // ---------------------------------------------------------------------------
 let cachedVoices = [];
 
 /**
- * Lấy danh sách giọng đọc tiếng Anh, ưu tiên các giọng Enhanced/Natural
+ * Lấy danh sách giọng đọc tiếng Anh, ưu tiên các giọng Enhanced/Natural/Online/Google
  */
 export function getEnglishVoices() {
   return new Promise((resolve) => {
@@ -386,13 +196,14 @@ export function getEnglishVoices() {
       const enVoices = allVoices.filter((v) => v.lang && v.lang.toLowerCase().startsWith('en'));
       const pool = enVoices.length > 0 ? enVoices : allVoices;
 
-      // Ưu tiên các giọng chất lượng cao: Enhanced, Premium, Natural, Online, Google
+      // Ưu tiên các giọng chất lượng cao: Natural, Online, Enhanced, Premium, Google
       const sorted = [...pool].sort((a, b) => {
         const score = (v) => {
           const name = (v.name || '').toLowerCase();
+          if (name.includes('natural') || name.includes('online')) return 4;
           if (name.includes('enhanced') || name.includes('premium')) return 3;
-          if (name.includes('natural') || name.includes('online')) return 2;
-          if (name.includes('google') || name.includes('siri')) return 1;
+          if (name.includes('google') || name.includes('siri')) return 2;
+          if (v.lang && (v.lang.toLowerCase() === 'en-us' || v.lang.toLowerCase() === 'en-gb')) return 1;
           return 0;
         };
         return score(b) - score(a);
@@ -407,12 +218,20 @@ export function getEnglishVoices() {
       loadVoices();
     } else {
       window.speechSynthesis.onvoiceschanged = loadVoices;
-      setTimeout(loadVoices, 500);
+      setTimeout(loadVoices, 300);
     }
   });
 }
 
-function speakWithSystemSpeech(text, options = {}) {
+// Tự động khởi chạy ngay khi module được nạp để nạp sẵn giọng tự nhiên trước khi người dùng gõ
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  getEnglishVoices();
+  window.speechSynthesis.onvoiceschanged = () => {
+    getEnglishVoices();
+  };
+}
+
+async function speakWithSystemSpeech(text, options = {}) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) {
     return;
   }
@@ -421,19 +240,27 @@ function speakWithSystemSpeech(text, options = {}) {
 
   window.speechSynthesis.cancel();
 
+  // Đảm bảo cachedVoices đã nạp
+  let voices = cachedVoices;
+  if (!voices || voices.length === 0) {
+    voices = await getEnglishVoices();
+  }
+  if (!voices || voices.length === 0) {
+    voices = window.speechSynthesis.getVoices() || [];
+  }
+
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'en-US';
   utterance.rate = Math.max(0.5, Math.min(2.0, Number(rate) || 1.0));
   utterance.pitch = Math.max(0.5, Math.min(2.0, Number(pitch) || 1.0));
 
-  const voices = cachedVoices.length > 0 ? cachedVoices : (window.speechSynthesis.getVoices() || []);
   let selectedVoice = null;
   if (voiceURI && voices.length > 0) {
     selectedVoice = voices.find((v) => v.voiceURI === voiceURI);
   }
-  // Bắt buộc chọn voice tiếng Anh để tránh trường hợp HĐH dùng voice mặc định đọc tiếng Anh
+  // Bắt buộc chọn voice tiếng Anh chất lượng tốt nhất
   if (!selectedVoice && voices.length > 0) {
-    selectedVoice = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith('en')) || null;
+    selectedVoice = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith('en')) || voices[0] || null;
   }
   if (selectedVoice) {
     utterance.voice = selectedVoice;
@@ -446,7 +273,7 @@ function speakWithSystemSpeech(text, options = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Microsoft Edge Neural TTS
+// 4. Microsoft Edge Neural TTS
 // ---------------------------------------------------------------------------
 async function speakWithEdgeTTS(text, options = {}) {
   const {
@@ -511,7 +338,7 @@ async function speakWithEdgeTTS(text, options = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// 6. Piper Neural TTS (VITS WASM)
+// 5. Piper Neural TTS (VITS WASM)
 // ---------------------------------------------------------------------------
 async function speakWithPiperTTS(text, options = {}) {
   const {
@@ -563,87 +390,6 @@ async function speakWithPiperTTS(text, options = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Kokoro TTS (StyleTTS2 WASM)
-// ---------------------------------------------------------------------------
-async function speakWithKokoro(text, options = {}) {
-  const {
-    kokoroVoice = DEFAULT_KOKORO_VOICE,
-    rate = 1.0,
-    pitch = 1.0,
-    voiceURI,
-    onStart,
-    onEnd
-  } = options;
-
-  if (kokoroStatus.state !== 'ready') {
-    if (kokoroStatus.state === 'idle') {
-      initKokoro();
-    }
-    speakWithSystemSpeech(text, { voiceURI, rate, pitch, onStart, onEnd });
-    return;
-  }
-
-  const cacheKey = getKokoroCacheKey(text, kokoroVoice, rate);
-  if (audioCache.has(cacheKey)) {
-    const { audioData, samplingRate } = audioCache.get(cacheKey);
-    playKokoroAudio(audioData, samplingRate, onStart, onEnd);
-    return;
-  }
-
-  const w = getWorker();
-  if (!w) {
-    speakWithSystemSpeech(text, { voiceURI, rate, pitch, onStart, onEnd });
-    return;
-  }
-
-  const id = ++reqCounter;
-  try {
-    const synthPromise = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        if (pendingRequests.has(id)) {
-          pendingRequests.delete(id);
-          reject(new Error('Timeout tổng hợp giọng nói Kokoro'));
-        }
-      }, 60000);
-
-      pendingRequests.set(id, {
-        resolve: (val) => {
-          clearTimeout(timer);
-          resolve(val);
-        },
-        reject: (err) => {
-          clearTimeout(timer);
-          reject(err);
-        }
-      });
-    });
-
-    w.postMessage({
-      type: 'SYNTHESIZE',
-      payload: {
-        id,
-        text,
-        voice: kokoroVoice,
-        speed: rate
-      }
-    });
-
-    const { audioData, samplingRate } = await synthPromise;
-
-    if (audioCache.size >= MAX_CACHE_SIZE) {
-      const oldestKey = audioCache.keys().next().value;
-      audioCache.delete(oldestKey);
-    }
-    audioCache.set(cacheKey, { audioData, samplingRate });
-
-    playKokoroAudio(audioData, samplingRate, onStart, onEnd);
-  } catch (err) {
-    console.warn('[Speech] Kokoro generation failed, fallback to system TTS:', err);
-    speakWithSystemSpeech(text, { voiceURI, rate, pitch, onStart, onEnd });
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Main speakEnglish API
 // ---------------------------------------------------------------------------
 
@@ -651,10 +397,9 @@ async function speakWithKokoro(text, options = {}) {
  * Phát âm thanh đọc câu tiếng Anh với động cơ được chọn
  * @param {string} text
  * @param {object} [options={}]
- * @param {'edge'|'system'|'piper'|'kokoro'} [options.engine='edge']
+ * @param {'edge'|'system'|'piper'} [options.engine='edge']
  * @param {string} [options.edgeVoice='en-US-JennyNeural']
  * @param {string} [options.piperVoice='en_US-lessac-medium']
- * @param {string} [options.kokoroVoice='af_heart']
  * @param {string} [options.voiceURI]
  * @param {number} [options.rate=1.0]
  * @param {number} [options.pitch=1.0]
@@ -668,7 +413,6 @@ export async function speakEnglish(text, options = {}) {
     engine = 'edge',
     edgeVoice = DEFAULT_EDGE_VOICE,
     piperVoice = DEFAULT_PIPER_VOICE,
-    kokoroVoice = DEFAULT_KOKORO_VOICE,
     voiceURI,
     rate = 1.0,
     pitch = 1.0,
@@ -686,12 +430,8 @@ export async function speakEnglish(text, options = {}) {
       break;
 
     case 'system':
-      speakWithSystemSpeech(text, { voiceURI, rate, pitch, onStart, onEnd });
-      break;
-
-    case 'kokoro':
     default:
-      await speakWithKokoro(text, { kokoroVoice, rate, pitch, voiceURI, onStart, onEnd });
+      await speakWithSystemSpeech(text, { voiceURI, rate, pitch, onStart, onEnd });
       break;
   }
 }
@@ -705,8 +445,6 @@ export function preloadSpeech(text, options = {}) {
   const {
     engine = 'edge',
     edgeVoice = DEFAULT_EDGE_VOICE,
-    piperVoice = DEFAULT_PIPER_VOICE,
-    kokoroVoice = DEFAULT_KOKORO_VOICE,
     rate = 1.0
   } = options;
 
@@ -734,52 +472,6 @@ export function preloadSpeech(text, options = {}) {
           audioCache.delete(oldestKey);
         }
         audioCache.set(cacheKey, blobUrl);
-      })
-      .catch(() => {});
-    return;
-  }
-
-  if (engine === 'kokoro') {
-    if (kokoroStatus.state !== 'ready') return;
-    const cacheKey = getKokoroCacheKey(text, kokoroVoice, rate);
-    if (audioCache.has(cacheKey)) return;
-
-    const w = getWorker();
-    if (!w) return;
-
-    const id = ++reqCounter;
-    const synthPromise = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        if (pendingRequests.has(id)) {
-          pendingRequests.delete(id);
-          reject(new Error('Preload timeout'));
-        }
-      }, 45000);
-
-      pendingRequests.set(id, {
-        resolve: (val) => {
-          clearTimeout(timer);
-          resolve(val);
-        },
-        reject: (err) => {
-          clearTimeout(timer);
-          reject(err);
-        }
-      });
-    });
-
-    w.postMessage({
-      type: 'SYNTHESIZE',
-      payload: { id, text, voice: kokoroVoice, speed: rate }
-    });
-
-    synthPromise
-      .then(({ audioData, samplingRate }) => {
-        if (audioCache.size >= MAX_CACHE_SIZE) {
-          const oldest = audioCache.keys().next().value;
-          audioCache.delete(oldest);
-        }
-        audioCache.set(cacheKey, { audioData, samplingRate });
       })
       .catch(() => {});
   }

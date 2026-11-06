@@ -8,11 +8,6 @@ import {
   getPiperStatus,
   subscribePiperStatus,
   initPiper,
-  KOKORO_VOICES,
-  DEFAULT_KOKORO_VOICE,
-  subscribeKokoroStatus,
-  getKokoroStatus,
-  initKokoro,
   speakEnglish
 } from '../lib/speech.js';
 import { resetSessionStats } from '../lib/stats.js';
@@ -32,7 +27,6 @@ export function SettingsModal({
   if (!isOpen) return null;
 
   const [voices, setVoices] = useState([]);
-  const [kokoroStatus, setKokoroStatus] = useState(getKokoroStatus);
   const [piperStatus, setPiperStatus] = useState(getPiperStatus);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [storageCfg, setStorageCfg] = useState(getStorageConfig);
@@ -41,11 +35,6 @@ export function SettingsModal({
 
   useEffect(() => {
     getEnglishVoices().then(setVoices);
-  }, []);
-
-  useEffect(() => {
-    const unsub = subscribeKokoroStatus(setKokoroStatus);
-    return unsub;
   }, []);
 
   useEffect(() => {
@@ -206,6 +195,20 @@ export function SettingsModal({
               <p className="storage-card-desc">
                 Miễn phí 100%, bảo mật vĩnh viễn trên GitHub của bạn. Đồng bộ bài học giữa nhiều máy tính bằng Personal Access Token (PAT).
               </p>
+
+              <div
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  border: '1px solid rgba(99, 102, 241, 0.2)',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-secondary)',
+                  marginBottom: '0.75rem'
+                }}
+              >
+                ✨ <strong>Tự động đồng bộ:</strong> Máy chủ EdgeOne đã cấu hình sẵn biến môi trường Gist. Trình duyệt tự động tải và đồng bộ toàn bộ nội dung pack mà không cần nhập token. Chỉ điền bên dưới nếu bạn muốn dùng Gist cá nhân riêng!
+              </div>
 
               <div className="storage-input-group">
                 <div>
@@ -459,7 +462,7 @@ export function SettingsModal({
                 <p>Chọn giọng Cloud AI phòng thu, Web Speech siêu tốc hoặc AI Offline</p>
               </div>
               <select
-                value={settings.ttsEngine || 'system'}
+                value={settings.ttsEngine || 'edge'}
                 onChange={(e) => handleChange('ttsEngine', e.target.value)}
                 style={{
                   maxWidth: '240px',
@@ -471,10 +474,9 @@ export function SettingsModal({
                   fontSize: '0.8125rem'
                 }}
               >
-                <option value="system">Web Speech API (Hệ thống - Cực nhanh 0ms)</option>
-                <option value="kokoro">Kokoro Neural AI (StyleTTS2 WASM Đa Luồng)</option>
-                <option value="piper">Piper Neural TTS (VITS WASM - Siêu nhẹ ~15MB)</option>
                 <option value="edge">Microsoft Edge Neural (Cloud AI / Node.js Dev)</option>
+                <option value="system">Web Speech API (Hệ thống - Cực nhanh 0ms)</option>
+                <option value="piper">Piper Neural TTS (VITS WASM - Siêu nhẹ ~15MB)</option>
               </select>
             </div>
 
@@ -754,135 +756,7 @@ export function SettingsModal({
               </>
             )}
 
-            {/* 4. Chi tiết Kokoro Neural AI */}
-            {settings.ttsEngine === 'kokoro' && (
-              <>
-                <div
-                  style={{
-                    padding: '0.6rem 0.75rem',
-                    background: 'var(--bg-subtle)',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-subtle)',
-                    marginBottom: '0.75rem',
-                    fontSize: '0.8125rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Mô hình Kokoro (q8):</span>
-                    {kokoroStatus.state === 'ready' && (
-                      <span style={{ color: 'var(--color-success, #10b981)', fontWeight: 600 }}>
-                        ✓ Sẵn sàng (WASM Đa Luồng + SIMD)
-                      </span>
-                    )}
-                    {kokoroStatus.state === 'loading' && (
-                      <span style={{ color: 'var(--accent, #6366f1)', fontWeight: 600 }}>
-                        {kokoroStatus.progress >= 95 ? 'Đang khởi động (Warm-up)...' : `Đang nạp ${kokoroStatus.progress}%`}
-                      </span>
-                    )}
-                    {kokoroStatus.state === 'error' && (
-                      <span style={{ color: 'var(--color-error, #ef4444)', fontWeight: 500 }}>
-                        Chưa sẵn sàng (Dùng fallback)
-                      </span>
-                    )}
-                    {kokoroStatus.state === 'idle' && (
-                      <button
-                        type="button"
-                        onClick={initKokoro}
-                        style={{
-                          background: 'var(--accent, #6366f1)',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: '4px',
-                          padding: '0.2rem 0.6rem',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Tải mô hình (~86MB)
-                      </button>
-                    )}
-                  </div>
-                  {kokoroStatus.state === 'loading' && (
-                    <div
-                      style={{
-                        marginTop: '0.5rem',
-                        width: '100%',
-                        height: '4px',
-                        background: 'var(--border-subtle)',
-                        borderRadius: '2px',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${Math.max(5, kokoroStatus.progress)}%`,
-                          height: '100%',
-                          background: 'var(--accent, #6366f1)',
-                          transition: 'width 0.25s ease'
-                        }}
-                      ></div>
-                    </div>
-                  )}
-                  <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary, #94a3b8)' }}>
-                    * Tự động nạp trước (pre-cache) thẻ tiếp theo trong nền.
-                  </p>
-                </div>
 
-                <div className="toggle-row">
-                  <div className="toggle-info">
-                    <h4>Giọng đọc Kokoro</h4>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <select
-                      value={settings.kokoroVoice || DEFAULT_KOKORO_VOICE}
-                      onChange={(e) => handleChange('kokoroVoice', e.target.value)}
-                      style={{
-                        maxWidth: '200px',
-                        background: 'var(--bg-subtle)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: '6px',
-                        padding: '0.35rem 0.5rem',
-                        fontSize: '0.8125rem'
-                      }}
-                    >
-                      {KOKORO_VOICES.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      disabled={isPreviewPlaying}
-                      onClick={() => {
-                        setIsPreviewPlaying(true);
-                        speakEnglish('Welcome to TypeLearn.', {
-                          engine: 'kokoro',
-                          kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
-                          rate: settings.speechRate || 1.0,
-                          onEnd: () => setIsPreviewPlaying(false)
-                        });
-                        setTimeout(() => setIsPreviewPlaying(false), 3000);
-                      }}
-                      style={{
-                        padding: '0.35rem 0.6rem',
-                        background: 'var(--bg-subtle)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: '6px',
-                        fontSize: '0.75rem',
-                        cursor: isPreviewPlaying ? 'not-allowed' : 'pointer',
-                        opacity: isPreviewPlaying ? 0.6 : 1
-                      }}
-                      title="Nghe thử giọng này"
-                    >
-                      {isPreviewPlaying ? '...' : '🔊 Thử'}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
 
             <div className="toggle-row">
               <div className="toggle-info">
