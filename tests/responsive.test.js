@@ -9,6 +9,8 @@ describe('Responsive Design & Mobile QA Specifications', () => {
   const headerJsx = fs.readFileSync(path.join(rootDir, 'src/components/Header.jsx'), 'utf-8');
   const stageJsx = fs.readFileSync(path.join(rootDir, 'src/components/BilingualStage.jsx'), 'utf-8');
   const manageJsx = fs.readFileSync(path.join(rootDir, 'src/components/ManageModal.jsx'), 'utf-8');
+  const settingsJsx = fs.readFileSync(path.join(rootDir, 'src/components/SettingsModal.jsx'), 'utf-8');
+  const appJsx = fs.readFileSync(path.join(rootDir, 'src/App.jsx'), 'utf-8');
 
   describe('1. HTML Viewport & Safe Area Meta', () => {
     it('should have viewport-fit=cover and device-width configured', () => {
@@ -103,6 +105,35 @@ describe('Responsive Design & Mobile QA Specifications', () => {
     it('should have responsive padding on modal overlay', () => {
       expect(cssContent).toContain('.modal-overlay');
       expect(cssContent).toContain('@media (max-width: 768px)');
+    });
+  });
+
+  describe('8. Mobile Virtual Keyboard Detection & Configuration', () => {
+    it('should configure default enableVirtualKeyboard: false in App.jsx', () => {
+      expect(appJsx).toContain('enableVirtualKeyboard: false');
+      expect(appJsx).toContain('enableVirtualKeyboard={Boolean(settings.enableVirtualKeyboard)}');
+      expect(appJsx).toContain('onToggleVirtualKeyboard');
+    });
+
+    it('should provide a setting option to toggle virtual keyboard in SettingsModal.jsx', () => {
+      expect(settingsJsx).toContain('Bàn phím ảo trên điện thoại');
+      expect(settingsJsx).toContain('settings.enableVirtualKeyboard');
+      expect(settingsJsx).toContain("handleToggle('enableVirtualKeyboard')");
+    });
+
+    it('should detect small screen device and suppress virtual keyboard when disabled', () => {
+      expect(stageJsx).toContain('checkIsSmallScreen');
+      expect(stageJsx).toContain("inputMode={isSmallScreen && !enableVirtualKeyboard ? 'none' : 'text'}");
+      expect(stageJsx).toContain("virtualKeyboardPolicy={isSmallScreen && !enableVirtualKeyboard ? 'manual' : 'auto'}");
+    });
+
+    it('should provide a mobile virtual keyboard toggle button in BilingualStage', () => {
+      expect(stageJsx).toContain('isSmallScreen && onToggleVirtualKeyboard');
+      expect(stageJsx).toContain('⌨️');
+    });
+
+    it('should not auto-focus input on small screens unless virtual keyboard is enabled', () => {
+      expect(stageJsx).toContain('const shouldFocus = !isSmallScreen || enableVirtualKeyboard;');
     });
   });
 });

@@ -397,7 +397,7 @@ async function speakWithPiperTTS(text, options = {}) {
  * Phát âm thanh đọc câu tiếng Anh với động cơ được chọn
  * @param {string} text
  * @param {object} [options={}]
- * @param {'edge'|'system'|'piper'} [options.engine='edge']
+ * @param {'edge'|'system'|'piper'} [options.engine='system']
  * @param {string} [options.edgeVoice='en-US-JennyNeural']
  * @param {string} [options.piperVoice='en_US-lessac-medium']
  * @param {string} [options.voiceURI]
@@ -410,7 +410,7 @@ export async function speakEnglish(text, options = {}) {
   if (!text || typeof text !== 'string') return;
 
   const {
-    engine = 'edge',
+    engine = 'system',
     edgeVoice = DEFAULT_EDGE_VOICE,
     piperVoice = DEFAULT_PIPER_VOICE,
     voiceURI,
@@ -443,7 +443,7 @@ export function preloadSpeech(text, options = {}) {
   if (!text || typeof text !== 'string') return;
 
   const {
-    engine = 'edge',
+    engine = 'system',
     edgeVoice = DEFAULT_EDGE_VOICE,
     rate = 1.0
   } = options;

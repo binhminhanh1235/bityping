@@ -27,6 +27,22 @@ function getSuperscriptNumber(id) {
     .join('');
 }
 
+/**
+ * Phát hiện thiết bị có màn hình nhỏ như điện thoại di động
+ * (Chiều rộng màn hình <= 768px hoặc màn hình xoay ngang điện thoại với cảm ứng chạm)
+ * @returns {boolean}
+ */
+export function checkIsSmallScreen() {
+  if (typeof window === 'undefined') return false;
+  const isSmallWidth = window.innerWidth <= 768 || (window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+  const isMobileLandscape = window.innerHeight <= 500 && (
+    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
+    ('ontouchstart' in window) ||
+    (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
+  );
+  return Boolean(isSmallWidth || isMobileLandscape);
+}
+
 export function BilingualStage({
   card,
   typingState,
@@ -37,12 +53,34 @@ export function BilingualStage({
   onPlaySpeech,
   autoNext = false,
   memoryMode = false,
-  onRecordStats
+  onRecordStats,
+  enableVirtualKeyboard = false,
+  onToggleVirtualKeyboard
 }) {
   const [hoveredLinkId, setHoveredLinkId] = useState(null);
   const [isBoxFocused, setIsBoxFocused] = useState(true);
   const [autoNextCountdown, setAutoNextCountdown] = useState(null);
   const inputRef = useRef(null);
+
+  // Phát hiện màn hình nhỏ / điện thoại
+  const [isSmallScreen, setIsSmallScreen] = useState(() => checkIsSmallScreen());
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const updateScreen = () => {
+      setIsSmallScreen(checkIsSmallScreen());
+    };
+    window.addEventListener('resize', updateScreen);
+    window.addEventListener('orientationchange', updateScreen);
+    const mql = window.matchMedia && window.matchMedia('(max-width: 768px)');
+    mql?.addEventListener?.('change', updateScreen);
+
+    return () => {
+      window.removeEventListener('resize', updateScreen);
+      window.removeEventListener('orientationchange', updateScreen);
+      mql?.removeEventListener?.('change', updateScreen);
+    };
+  }, []);
 
   // Dictation state: 'idle' | 'listening' | 'result'
   const [dictState, setDictState] = useState('idle');
@@ -78,16 +116,38 @@ export function BilingualStage({
     };
   }, [isBoxFocused]);
 
-  // Tự động focus vào input khi đổi thẻ hoặc load
+  // Phản hồi khi bật/tắt tùy chọn bàn phím ảo trên di động
   useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
+    if (isSmallScreen) {
+      if (enableVirtualKeyboard) {
+        try {
+          inputRef.current?.focus({ preventScroll: true });
+        } catch {
+          inputRef.current?.focus();
+        }
+      } else {
+        inputRef.current?.blur();
+      }
+    }
+  }, [enableVirtualKeyboard, isSmallScreen]);
+
+  // Tự động focus vào input khi đổi thẻ hoặc load
+  // Trên máy tính: luôn focus để gõ phím vật lý ngay lập tức
+  // Trên điện thoại/màn hình nhỏ: không tự động mở bàn phím ảo trừ khi bật tùy chọn trong cài đặt
+  useEffect(() => {
+    const shouldFocus = !isSmallScreen || enableVirtualKeyboard;
+    if (shouldFocus && inputRef.current) {
+      try {
+        inputRef.current.focus({ preventScroll: true });
+      } catch {
+        inputRef.current.focus();
+      }
     }
     // Reset dictation when card changes
     setDictState('idle');
     setDictResult(null);
     dictControlRef.current?.stop();
-  }, [card?.id]);
+  }, [card?.id, isSmallScreen, enableVirtualKeyboard]);
 
   // Xử lý auto-next sau khi hoàn thành
   useEffect(() => {
@@ -114,16 +174,22 @@ export function BilingualStage({
     }
   }, [typingState.isComplete]);
 
-  // Đảm bảo input luôn nhận focus khi click vào box
+  // Đảm bảo input luôn nhận focus khi click vào box (nếu được phép mở bàn phím ảo hoặc trên desktop)
   const handleBoxClick = () => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-      setIsBoxFocused(true);
-      if (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) {
-        setTimeout(() => {
-          inputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        }, 120);
+    const shouldFocus = !isSmallScreen || enableVirtualKeyboard;
+    if (shouldFocus) {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        setIsBoxFocused(true);
+        if (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) {
+          setTimeout(() => {
+            inputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }, 120);
+        }
       }
+    } else {
+      // Khi ở màn hình nhỏ và tắt bàn phím ảo: vẫn giữ trạng thái active của stage mà không gọi mở bàn phím ảo
+      setIsBoxFocused(true);
     }
   };
 
@@ -233,8 +299,10 @@ export function BilingualStage({
   const handleDictationRetry = () => {
     setDictState('idle');
     setDictResult(null);
-    // Refocus hidden input so keyboard still works
-    inputRef.current?.focus();
+    // Chỉ refocus hidden input nếu được phép mở bàn phím ảo hoặc trên desktop
+    if (!isSmallScreen || enableVirtualKeyboard) {
+      inputRef.current?.focus();
+    }
   };
 
   // Render câu tiếng Việt với các cụm liên kết
@@ -347,7 +415,8 @@ export function BilingualStage({
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck="false"
-        inputMode="text"
+        inputMode={isSmallScreen && !enableVirtualKeyboard ? 'none' : 'text'}
+        virtualKeyboardPolicy={isSmallScreen && !enableVirtualKeyboard ? 'manual' : 'auto'}
         onKeyDown={handleKeyDown}
         onInput={handleInput}
         onCompositionStart={handleCompositionStart}
@@ -387,6 +456,19 @@ export function BilingualStage({
           >
             Bỏ qua ➔
           </button>
+          {/* Nút bật/tắt bàn phím ảo trên điện thoại / màn hình nhỏ */}
+          {isSmallScreen && onToggleVirtualKeyboard && (
+            <button
+              type="button"
+              className={`icon-btn stage-action-icon${enableVirtualKeyboard ? ' active' : ''}`}
+              onClick={onToggleVirtualKeyboard}
+              title={enableVirtualKeyboard ? 'Bàn phím ảo di động: Đang BẬT (Bấm để tắt)' : 'Bàn phím ảo di động: Đang TẮT (Bấm để bật)'}
+              aria-label={enableVirtualKeyboard ? 'Tắt bàn phím ảo' : 'Bật bàn phím ảo'}
+              aria-pressed={enableVirtualKeyboard}
+            >
+              ⌨️
+            </button>
+          )}
           {/* Mic button — mobile only (pointer: coarse) + SpeechRecognition available */}
           {isMobile && (
             <button

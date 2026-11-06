@@ -1342,6 +1342,11 @@ input:checked + .slider:before {
     min-width: 44px;
     min-height: 44px;
   }
+  .stage-action-icon.active {
+    background-color: var(--accent-subtle, rgba(99, 102, 241, 0.15));
+    border-color: var(--accent, #6366f1);
+    color: var(--accent, #6366f1);
+  }
   .popover-item {
     min-height: 44px;
     padding: 0.65rem 0.85rem;

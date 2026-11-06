@@ -31,11 +31,12 @@ const DEFAULT_SETTINGS = {
   memoryMode: false,
   autoSpeakOnStart: false,
   autoSpeakOnEnd: false,
-  ttsEngine: 'edge',
+  ttsEngine: 'system',
   edgeVoice: DEFAULT_EDGE_VOICE,
   piperVoice: DEFAULT_PIPER_VOICE,
   voiceURI: '',
-  speechRate: 1.0
+  speechRate: 1.0,
+  enableVirtualKeyboard: false
 };
 
 export function App() {
@@ -186,7 +187,7 @@ export function App() {
 
     if (settings.autoSpeakOnStart) {
       speakEnglish(card.en, {
-        engine: settings.ttsEngine || 'edge',
+        engine: settings.ttsEngine || 'system',
         edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
         piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
         voiceURI: settings.voiceURI,
@@ -205,7 +206,7 @@ export function App() {
         const nextOne = remainingCandidates[Math.floor(Math.random() * remainingCandidates.length)];
         if (nextOne?.en) {
           preloadSpeech(nextOne.en, {
-            engine: settings.ttsEngine || 'edge',
+            engine: settings.ttsEngine || 'system',
             edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
             piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
             rate: settings.speechRate
@@ -248,7 +249,7 @@ export function App() {
   const playSpeech = () => {
     if (!currentCard) return;
     speakEnglish(currentCard.en, {
-      engine: settings.ttsEngine || 'edge',
+      engine: settings.ttsEngine || 'system',
       edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
       piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
       voiceURI: settings.voiceURI,
@@ -264,7 +265,7 @@ export function App() {
 
     if (settings.autoSpeakOnEnd && currentCard) {
       speakEnglish(currentCard.en, {
-        engine: settings.ttsEngine || 'edge',
+        engine: settings.ttsEngine || 'system',
         edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
         piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
         voiceURI: settings.voiceURI,
@@ -345,6 +346,10 @@ export function App() {
           autoNext={settings.autoNext}
           memoryMode={settings.memoryMode}
           onRecordStats={handleRecordStats}
+          enableVirtualKeyboard={Boolean(settings.enableVirtualKeyboard)}
+          onToggleVirtualKeyboard={() =>
+            updateSettings({ enableVirtualKeyboard: !settings.enableVirtualKeyboard })
+          }
         />
       ) : (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>

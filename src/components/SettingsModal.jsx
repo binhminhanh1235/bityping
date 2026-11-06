@@ -455,6 +455,21 @@ export function SettingsModal({
               </div>
             )}
 
+            <div className="toggle-row">
+              <div className="toggle-info">
+                <h4>Bàn phím ảo trên điện thoại</h4>
+                <p>Mở bàn phím ảo khi luyện gõ trên màn hình nhỏ / điện thoại (mặc định tắt để tránh che khuất màn hình)</p>
+              </div>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.enableVirtualKeyboard)}
+                  onChange={() => handleToggle('enableVirtualKeyboard')}
+                />
+                <span className="slider"></span>
+              </label>
+            </div>
+
             {/* Section: Giọng đọc & TTS */}
             <div className="toggle-row">
               <div className="toggle-info">
@@ -462,7 +477,7 @@ export function SettingsModal({
                 <p>Chọn giọng Cloud AI phòng thu, Web Speech siêu tốc hoặc AI Offline</p>
               </div>
               <select
-                value={settings.ttsEngine || 'edge'}
+                value={settings.ttsEngine || 'system'}
                 onChange={(e) => handleChange('ttsEngine', e.target.value)}
                 style={{
                   maxWidth: '240px',
@@ -474,8 +489,8 @@ export function SettingsModal({
                   fontSize: '0.8125rem'
                 }}
               >
+                <option value="system">Web Speech API (Hệ thống - Cực nhanh 0ms, Khuyên dùng)</option>
                 <option value="edge">Microsoft Edge Neural (Cloud AI / Node.js Dev)</option>
-                <option value="system">Web Speech API (Hệ thống - Cực nhanh 0ms)</option>
                 <option value="piper">Piper Neural TTS (VITS WASM - Siêu nhẹ ~15MB)</option>
               </select>
             </div>
