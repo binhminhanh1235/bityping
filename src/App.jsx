@@ -32,7 +32,7 @@ const DEFAULT_SETTINGS = {
   memoryMode: false,
   autoSpeakOnStart: false,
   autoSpeakOnEnd: false,
-  ttsEngine: 'edge',
+  ttsEngine: 'system',
   edgeVoice: DEFAULT_EDGE_VOICE,
   piperVoice: DEFAULT_PIPER_VOICE,
   kokoroVoice: DEFAULT_KOKORO_VOICE,
@@ -188,7 +188,7 @@ export function App() {
 
     if (settings.autoSpeakOnStart) {
       speakEnglish(card.en, {
-        engine: settings.ttsEngine || 'edge',
+        engine: settings.ttsEngine || 'system',
         edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
         piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
         kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
@@ -208,7 +208,7 @@ export function App() {
         const nextOne = remainingCandidates[Math.floor(Math.random() * remainingCandidates.length)];
         if (nextOne?.en) {
           preloadSpeech(nextOne.en, {
-            engine: settings.ttsEngine || 'edge',
+            engine: settings.ttsEngine || 'system',
             edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
             piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
             kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,
@@ -269,7 +269,7 @@ export function App() {
 
     if (settings.autoSpeakOnEnd && currentCard) {
       speakEnglish(currentCard.en, {
-        engine: settings.ttsEngine || 'edge',
+        engine: settings.ttsEngine || 'system',
         edgeVoice: settings.edgeVoice || DEFAULT_EDGE_VOICE,
         piperVoice: settings.piperVoice || DEFAULT_PIPER_VOICE,
         kokoroVoice: settings.kokoroVoice || DEFAULT_KOKORO_VOICE,

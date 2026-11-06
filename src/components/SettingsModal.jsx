@@ -459,7 +459,7 @@ export function SettingsModal({
                 <p>Chọn giọng Cloud AI phòng thu, Web Speech siêu tốc hoặc AI Offline</p>
               </div>
               <select
-                value={settings.ttsEngine || 'edge'}
+                value={settings.ttsEngine || 'system'}
                 onChange={(e) => handleChange('ttsEngine', e.target.value)}
                 style={{
                   maxWidth: '240px',
@@ -471,15 +471,15 @@ export function SettingsModal({
                   fontSize: '0.8125rem'
                 }}
               >
-                <option value="edge">Microsoft Edge Neural (Cloud AI - Studio 10/10)</option>
                 <option value="system">Web Speech API (Hệ thống - Cực nhanh 0ms)</option>
-                <option value="piper">Piper Neural TTS (VITS WASM - Siêu nhẹ ~15MB)</option>
                 <option value="kokoro">Kokoro Neural AI (StyleTTS2 WASM Đa Luồng)</option>
+                <option value="piper">Piper Neural TTS (VITS WASM - Siêu nhẹ ~15MB)</option>
+                <option value="edge">Microsoft Edge Neural (Cloud AI / Node.js Dev)</option>
               </select>
             </div>
 
             {/* 1. Chi tiết Microsoft Edge Neural TTS */}
-            {(settings.ttsEngine || 'edge') === 'edge' && (
+            {settings.ttsEngine === 'edge' && (
               <>
                 <div
                   style={{
@@ -492,7 +492,7 @@ export function SettingsModal({
                     color: 'var(--text-secondary, #94a3b8)'
                   }}
                 >
-                  ☁️ <strong>Giọng đọc AI Microsoft Azure:</strong> Tự nhiên 10/10 chuẩn phòng thu, ngữ điệu biểu cảm bản ngữ, phản hồi ~200ms qua stream MP3, 0MB tải về. Tự động fallback sang giọng hệ thống nếu offline.
+                  ☁️ <strong>Giọng đọc AI Microsoft Azure:</strong> Tự nhiên 10/10 chuẩn phòng thu (yêu cầu Node.js proxy khi chạy local dev). Tự động fallback sang giọng Web Speech API nếu triển khai trên EdgeOne/serverless tĩnh.
                 </div>
                 <div className="toggle-row">
                   <div className="toggle-info">

@@ -264,7 +264,7 @@ function cleanupCurrentAudio() {
   }
 }
 
-function playBlobUrl(blobUrl, onStart, onEnd) {
+function playBlobUrl(blobUrl, onStart, onEnd, onError) {
   if (typeof window === 'undefined') return;
   stopSpeech();
 
@@ -284,18 +284,30 @@ function playBlobUrl(blobUrl, onStart, onEnd) {
     audio.onerror = (e) => {
       console.warn('[Speech] Trình phát âm thanh gặp lỗi:', e);
       cleanupCurrentAudio();
-      if (onEnd) onEnd();
+      if (onError) {
+        onError(e);
+      } else if (onEnd) {
+        onEnd();
+      }
     };
 
     audio.play().catch((err) => {
       console.warn('[Speech] Trình duyệt chặn autoplay:', err);
       cleanupCurrentAudio();
-      if (onEnd) onEnd();
+      if (onError) {
+        onError(err);
+      } else if (onEnd) {
+        onEnd();
+      }
     });
   } catch (err) {
     console.error('[Speech] Lỗi khởi tạo audio:', err);
     cleanupCurrentAudio();
-    if (onEnd) onEnd();
+    if (onError) {
+      onError(err);
+    } else if (onEnd) {
+      onEnd();
+    }
   }
 }
 
@@ -446,10 +458,19 @@ async function speakWithEdgeTTS(text, options = {}) {
     onEnd
   } = options;
 
+  const fallbackToSystem = () => {
+    speakWithSystemSpeech(text, { voiceURI, rate, pitch, onStart, onEnd });
+  };
+
   const cacheKey = getEdgeCacheKey(text, edgeVoice, rate);
   if (audioCache.has(cacheKey)) {
     const blobUrl = audioCache.get(cacheKey);
-    playBlobUrl(blobUrl, onStart, onEnd);
+    playBlobUrl(blobUrl, onStart, onEnd, (err) => {
+      console.warn('[Speech] Audio cache Edge-TTS bị lỗi, xóa cache và fallback sang giọng hệ thống:', err);
+      audioCache.delete(cacheKey);
+      try { URL.revokeObjectURL(blobUrl); } catch {}
+      fallbackToSystem();
+    });
     return;
   }
 
@@ -457,10 +478,14 @@ async function speakWithEdgeTTS(text, options = {}) {
     const baseUrl = typeof window !== 'undefined' ? '' : 'http://localhost:5173';
     const url = `${baseUrl}/api/tts?text=${encodeURIComponent(text.trim())}&voice=${encodeURIComponent(edgeVoice)}&rate=${encodeURIComponent(rate)}`;
     const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`Edge-TTS server error: ${res.status}`);
+    const contentType = (res.headers.get('content-type') || '').toLowerCase();
+    if (!res.ok || !contentType.includes('audio')) {
+      throw new Error(`Edge-TTS trả về không hợp lệ (status: ${res.status}, type: ${contentType})`);
     }
     const blob = await res.blob();
+    if (blob.size === 0) {
+      throw new Error('Edge-TTS trả về dữ liệu rỗng (0 bytes)');
+    }
     const blobUrl = URL.createObjectURL(blob);
 
     if (audioCache.size >= MAX_CACHE_SIZE) {
@@ -473,10 +498,15 @@ async function speakWithEdgeTTS(text, options = {}) {
     }
     audioCache.set(cacheKey, blobUrl);
 
-    playBlobUrl(blobUrl, onStart, onEnd);
+    playBlobUrl(blobUrl, onStart, onEnd, (playErr) => {
+      console.warn('[Speech] Không thể phát âm thanh Edge-TTS, fallback sang giọng hệ thống:', playErr);
+      audioCache.delete(cacheKey);
+      try { URL.revokeObjectURL(blobUrl); } catch {}
+      fallbackToSystem();
+    });
   } catch (err) {
     console.warn('[Speech] Lỗi Edge-TTS, tự động fallback sang giọng hệ thống:', err);
-    speakWithSystemSpeech(text, { voiceURI, rate, pitch, onStart, onEnd });
+    fallbackToSystem();
   }
 }
 
@@ -688,11 +718,12 @@ export function preloadSpeech(text, options = {}) {
     const url = `${baseUrl}/api/tts?text=${encodeURIComponent(text.trim())}&voice=${encodeURIComponent(edgeVoice)}&rate=${encodeURIComponent(rate)}`;
     fetch(url)
       .then((res) => {
-        if (!res.ok) return null;
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        if (!res.ok || !contentType.includes('audio')) return null;
         return res.blob();
       })
       .then((blob) => {
-        if (!blob) return;
+        if (!blob || blob.size === 0) return;
         const blobUrl = URL.createObjectURL(blob);
         if (audioCache.size >= MAX_CACHE_SIZE) {
           const oldestKey = audioCache.keys().next().value;
